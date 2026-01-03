@@ -1,0 +1,96 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>RBW Bar Simple</title>
+  <style>
+    html,body{margin:0;background:transparent;font-family:Arial,Helvetica,sans-serif;}
+    .bar{
+      width:1920px;height:90px;
+      display:flex;align-items:center;
+      padding:0 18px;
+      background:rgba(0,0,0,.75);
+      color:#fff;
+      border-top:1px solid rgba(255,255,255,.12);
+      border-bottom:1px solid rgba(255,255,255,.12);
+      overflow:hidden;box-sizing:border-box;
+    }
+    .items{
+      display:flex;gap:18px;align-items:center;
+      white-space:nowrap;
+      font-size:26px;font-weight:900;
+    }
+    .item{display:flex;gap:10px;align-items:center;}
+    .rk{opacity:.99;}
+    .flag{width:38px;height:25px;border-radius:3px;flex:0 0 auto;}
+    .nm{max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .elo{opacity:.9;font-weight:800;}
+    .sep{opacity:.35;margin:0 6px;}
+  </style>
+</head>
+<body>
+  <div class="bar">
+    <div class="items" id="items">Actualizando…</div>
+  </div>
+
+<script>
+const API = "http://127.0.0.1:3131/ranking";
+const REFRESH_MS = 10000;
+const PAGE_MS = 2000; // ✅ más lento: 10s cada bloque
+
+let page = 0;
+let last = [];
+
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));}
+
+function ccToTwemojiFile(cc){
+  if(!cc || String(cc).length !== 2) return "";
+  const up = String(cc).toUpperCase();
+  const A = "A".charCodeAt(0);
+  const cp1 = 0x1F1E6 + (up.charCodeAt(0) - A);
+  const cp2 = 0x1F1E6 + (up.charCodeAt(1) - A);
+  return cp1.toString(16) + "-" + cp2.toString(16);
+}
+function flagImgHtml(cc){
+  const file = ccToTwemojiFile(cc);
+  if(!file) return "";
+  const url = `https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/svg/${file}.svg`;
+  return `<img class="flag" src="${url}" alt="${esc(cc)}" />`;
+}
+
+function render(){
+  const el = document.getElementById("items");
+  if(!last.length){ el.textContent="Sin datos"; return; }
+
+  const start = page===0 ? 0 : 5;
+  const slice = last.slice(start, start+5);
+
+  el.innerHTML = slice.map(x => `
+    <span class="item">
+      <span class="rk">#${esc(x.rank)}</span>
+      ${flagImgHtml(x.country)}
+      <span class="nm">${esc(x.name)}</span>
+      <span class="sep">•</span>
+      <span class="elo">${esc(x.elo)}</span>
+    </span>
+  `).join(`<span class="sep">|</span>`);
+}
+
+async function tick(){
+  try{
+    const r = await fetch(API,{cache:"no-store"});
+    last = await r.json();
+    render();
+  }catch(e){
+    last = [];
+    render();
+  }
+}
+
+tick();
+setInterval(tick, REFRESH_MS);
+setInterval(()=>{ page = (page+1)%2; render(); }, PAGE_MS);
+</script>
+</body>
+</html>
