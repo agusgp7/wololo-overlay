@@ -37,7 +37,7 @@
 <script>
 const API = "https://wololo-backend.onrender.com/ranking";
 const REFRESH_MS = 10000;
-const PAGE_MS = 500; // ✅ más lento: 10s cada bloque
+const PAGE_MS = 20000; // ✅ más lento: 10s cada bloque
 
 let page = 0;
 let last = [];
@@ -94,5 +94,6 @@ setInterval(()=>{ page = (page+1)%2; render(); }, PAGE_MS);
 </script>
 </body>
 </html>
+
 
 
