@@ -12,48 +12,33 @@
       font-family:Arial,Helvetica,sans-serif;
     }
 
-    /* ===== PANEL ===== */
+    /* ===== PANEL (TRANSPARENTE) ===== */
     .wrap{
       width:560px;
-      padding:12px 14px;
-      background:rgba(0,0,0,.72);
-      border-radius:16px;
+      padding:8px 10px;          /* un poco de aire alrededor */
+      background:transparent;     /* ✅ sin fondo gris */
+      border-radius:0;
       color:#fff;
 
       opacity:0;
-      transform:translateY(10px);
-      transition:opacity .35s ease, transform .35s ease;
+      transform:translateY(14px) scale(.985);
+      filter:blur(2px);
+      transition:opacity .35s ease, transform .35s cubic-bezier(.2,.9,.2,1), filter .35s ease;
       pointer-events:none;
-
-      box-shadow:0 14px 44px rgba(0,0,0,.45);
-      border:1px solid rgba(255,255,255,.12);
     }
+
+    /* Efecto al aparecer */
     .wrap.show{
       opacity:1;
-      transform:translateY(0);
+      transform:translateY(0) scale(1);
+      filter:blur(0);
+      animation:pop .45s cubic-bezier(.2,.9,.2,1) both;
     }
 
-    .head{
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      margin-bottom:10px;
-    }
-    .title{
-      font-size:18px;
-      font-weight:1000;
-      letter-spacing:.5px;
-      opacity:.95;
-    }
-    .pill{
-      font-size:12px;
-      font-weight:900;
-      letter-spacing:.9px;
-      text-transform:uppercase;
-      padding:6px 10px;
-      border-radius:999px;
-      background:rgba(255,255,255,.10);
-      border:1px solid rgba(255,255,255,.14);
+    @keyframes pop{
+      0%   { transform:translateY(14px) scale(.985); }
+      60%  { transform:translateY(0) scale(1.01); }
+      100% { transform:translateY(0) scale(1); }
     }
 
     table{
@@ -69,6 +54,7 @@
       white-space:nowrap;
     }
 
+    /* Cada fila es una "card" */
     tr.card td{
       background:rgba(255,255,255,.06);
     }
@@ -125,6 +111,7 @@
       margin-left:6px;
     }
 
+    /* ✅ Mantener fondos verde/rojo (sin fondo global) */
     tr.moved-up td{
       background:rgba(61,255,122,.14);
       border-top:1px solid rgba(61,255,122,.22);
@@ -142,33 +129,16 @@
     tr.moved-down td:first-child{
       box-shadow:inset 4px 0 0 rgba(255,75,75,.75);
     }
-
-    .foot{
-      margin-top:8px;
-      font-size:12px;
-      opacity:.7;
-      display:flex;
-      justify-content:space-between;
-    }
   </style>
 </head>
 
 <body>
-<div class="wrap" id="wrap">
-  <div class="head">
-    <div class="title">Position changes</div>
-    <div class="pill" id="pill">LIVE</div>
+  <!-- ✅ Sin header, sin footer: solo tabla -->
+  <div class="wrap" id="wrap">
+    <table>
+      <tbody id="rows"></tbody>
+    </table>
   </div>
-
-  <table>
-    <tbody id="rows"></tbody>
-  </table>
-
-  <div class="foot">
-    <span id="ts">—</span>
-    <span>Appears only on rank changes</span>
-  </div>
-</div>
 
 <script>
 /* ================= CONFIG ================= */
@@ -186,7 +156,6 @@ function esc(s){
     {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]
   ));
 }
-
 function ccToTwemojiFile(cc){
   if(!cc || cc.length!==2) return "";
   const A="A".charCodeAt(0);
@@ -196,11 +165,10 @@ function ccToTwemojiFile(cc){
     (0x1F1E6 + up.charCodeAt(1)-A).toString(16)
   );
 }
-
 function flagImgHtml(cc){
   const f=ccToTwemojiFile(cc);
   if(!f) return "";
-  return `<img class="flag" src="https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/svg/${f}.svg">`;
+  return `<img class="flag" src="https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/svg/${f}.svg" alt="">`;
 }
 
 /* ================= STATE ================= */
@@ -234,20 +202,18 @@ function render(movers){
     tr.className=`card ${up?"moved-up":"moved-down"}`;
     tr.innerHTML=`
       <td class="rank">#${m.newRank}</td>
-      <td class="elo">${m.elo}</td>
+      <td class="elo">${esc(m.elo)}</td>
       <td class="player">
         <div class="name">
           <span class="arrow ${up?"up":"down"}">${up?"▲":"▼"}</span>
           ${flagImgHtml(m.country)}
-          <span class="cc">${m.cc}</span>
+          <span class="cc">${esc(m.cc)}</span>
           <span class="nm">${esc(m.name)}</span>
           <span class="from">from #${m.oldRank}</span>
         </div>
       </td>`;
     tb.appendChild(tr);
   });
-  document.getElementById("pill").textContent=`${movers.length} change${movers.length>1?"s":""}`;
-  document.getElementById("ts").textContent=new Date().toLocaleTimeString();
 }
 
 /* ================= LOGIC ================= */
@@ -259,7 +225,7 @@ function computeMovers(data){
     if(old && old!==now){
       movers.push({
         name:p.name,
-        country:p.country,
+        country:(p.country||"").toLowerCase(),
         cc:(p.country||"").toUpperCase(),
         elo:p.elo,
         newRank:now,
