@@ -1,0 +1,126 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>RBW Vertical Simple</title>
+  <style>
+    html,body{margin:0;background:transparent;font-family:Arial,Helvetica,sans-serif;}
+    .wrap{
+      width:560px;
+      padding:14px 16px;
+      background:rgba(0,0,0,.70);
+      border-radius:14px;
+      color:#fff;
+    }
+    .title{
+      font-size:26px;
+      font-weight:900;
+      letter-spacing:.3px;
+      margin:0 0 10px 0;
+    }
+    table{width:100%;border-collapse:collapse;}
+    th{
+      text-align:left;
+      font-size:15px;
+      opacity:.9;
+      font-weight:900;
+      padding:8px 8px;
+      border-bottom:1px solid rgba(255,255,255,.18);
+    }
+    td{
+      font-size:18px;
+      padding:8px 8px;
+      border-bottom:1px solid rgba(255,255,255,.10);
+      vertical-align:middle;
+    }
+    .rank{width:46px;font-weight:1000;}
+    .elo{width:78px;font-weight:900;}
+    .peak{width:86px;opacity:.95;}
+    .player{max-width:260px;}
+    .name{
+      display:flex;align-items:center;gap:10px;min-width:0;
+      font-weight:1000;
+      overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
+    }
+    .flag{width:24px;height:16px;border-radius:3px;flex:0 0 auto;}
+    .nm{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+    .status{margin-top:10px;font-size:13px;opacity:.8;}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="title">RBW: Londinium — Top 10</div>
+    <table>
+      <thead>
+        <tr>
+          <th class="rank">#</th>
+          <th class="elo">ELO</th>
+          <th class="peak">PEAK</th>
+          <th>PLAYER</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="status" id="status">Actualizando…</div>
+  </div>
+
+<script>
+const API = "https://wololo-backend.onrender.com/ranking";
+const REFRESH_MS = 10000;
+
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));}
+
+function ccToTwemojiFile(cc){
+  if(!cc || String(cc).length !== 2) return "";
+  const up = String(cc).toUpperCase();
+  const A = "A".charCodeAt(0);
+  const cp1 = 0x1F1E6 + (up.charCodeAt(0) - A);
+  const cp2 = 0x1F1E6 + (up.charCodeAt(1) - A);
+  return cp1.toString(16) + "-" + cp2.toString(16);
+}
+function flagImgHtml(cc){
+  const file = ccToTwemojiFile(cc);
+  if(!file) return "";
+  const url = `https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/svg/${file}.svg`;
+  return `<img class="flag" src="${url}" alt="${esc(cc)}" />`;
+}
+
+let last = [];
+
+async function tick(){
+  try{
+    const r = await fetch(API,{cache:"no-store"});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    last = await r.json();
+    render();
+    document.getElementById("status").textContent = "Actualizado";
+  }catch(e){
+    if(!last.length) document.getElementById("status").textContent = "Sin datos";
+  }
+}
+
+function render(){
+  const tb = document.getElementById("rows");
+  tb.innerHTML = "";
+  (last||[]).slice(0,10).forEach(x=>{
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="rank">#${esc(x.rank)}</td>
+      <td class="elo">${esc(x.elo)}</td>
+      <td class="peak">${esc(x.highest)}</td>
+      <td class="player">
+        <div class="name">
+          ${flagImgHtml(x.country)}
+          <span class="nm">${esc(x.name)}</span>
+        </div>
+      </td>`;
+    tb.appendChild(tr);
+  });
+}
+
+tick();
+setInterval(tick, REFRESH_MS);
+</script>
+</body>
+</html>
