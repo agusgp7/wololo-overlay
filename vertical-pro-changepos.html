@@ -12,62 +12,115 @@
       font-family:Arial,Helvetica,sans-serif;
     }
 
-    /* ===== PANEL (TRANSPARENTE) ===== */
+    /* ===== PANEL TRANSPARENTE ===== */
     .wrap{
       width:560px;
-      padding:8px 10px;          /* un poco de aire alrededor */
-      background:transparent;     /* ✅ sin fondo gris */
-      border-radius:0;
+      padding:8px 10px;
+      background:transparent;
       color:#fff;
 
       opacity:0;
-      transform:translateY(14px) scale(.985);
-      filter:blur(2px);
-      transition:opacity .35s ease, transform .35s cubic-bezier(.2,.9,.2,1), filter .35s ease;
+      transform:translateY(10px) scale(.99);
+      filter:blur(1.5px);
+      transition:opacity .25s ease, transform .25s ease, filter .25s ease;
       pointer-events:none;
     }
-
-    /* Efecto al aparecer */
     .wrap.show{
       opacity:1;
       transform:translateY(0) scale(1);
       filter:blur(0);
-      animation:pop .45s cubic-bezier(.2,.9,.2,1) both;
-    }
-
-    @keyframes pop{
-      0%   { transform:translateY(14px) scale(.985); }
-      60%  { transform:translateY(0) scale(1.01); }
-      100% { transform:translateY(0) scale(1); }
     }
 
     table{
       width:100%;
       border-collapse:separate;
-      border-spacing:0 8px;
+      border-spacing:0 10px;
     }
 
+    /* Cada fila es una card */
+    tr.card{
+      position:relative;
+    }
     td{
       font-size:20px;
-      padding:10px 10px;
+      padding:11px 12px;
       vertical-align:middle;
       white-space:nowrap;
+      background:transparent;
     }
 
-    /* Cada fila es una "card" */
+    /* Card base (borde suave) */
     tr.card td{
-      background:rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.10);
+      border-left:none;
+      border-right:none;
     }
     tr.card td:first-child{
+      border-left:1px solid rgba(255,255,255,.10);
       border-top-left-radius:14px;
       border-bottom-left-radius:14px;
     }
     tr.card td:last-child{
+      border-right:1px solid rgba(255,255,255,.10);
       border-top-right-radius:14px;
       border-bottom-right-radius:14px;
     }
 
-    .rank{width:72px;font-weight:1000;}
+    /* ===== FILA: ANIMACIÓN STAGGER (izq->der) =====
+       Cada TR tiene un div .fill detrás que animamos: opacity 0 -> 0.85 (85%)
+       Y el contenido se desliza desde la izquierda + aparece.
+    */
+    tr.card{ overflow:hidden; }
+    tr.card .fill{
+      position:absolute;
+      inset:0;
+      border-radius:14px;
+      opacity:0;                 /* start invisible */
+      transform:translateX(-14px); /* start left */
+      transition:
+        opacity .35s ease,
+        transform .35s cubic-bezier(.2,.9,.2,1);
+      z-index:0;
+      pointer-events:none;
+    }
+
+    tr.card .content{
+      position:relative;
+      z-index:1;
+      opacity:0;                 /* start invisible */
+      transform:translateX(-18px);
+      transition:
+        opacity .35s ease,
+        transform .35s cubic-bezier(.2,.9,.2,1);
+    }
+
+    /* Estado visible (lo activamos por JS con clase .in) */
+    tr.card.in .fill{
+      opacity:.85;              /* ✅ 85% */
+      transform:translateX(0);
+    }
+    tr.card.in .content{
+      opacity:1;
+      transform:translateX(0);
+    }
+
+    /* Colores del fill */
+    tr.moved-up .fill{
+      background:rgba(61,255,122,.85);
+      /* pero como es muy fuerte, lo suavizamos usando mezcla */
+      background:rgba(61,255,122,.18);
+      /* y dejamos la opacidad final en .85 del propio elemento */
+    }
+    tr.moved-down .fill{
+      background:rgba(255,75,75,.18);
+    }
+
+    /* Barra lateral del movimiento */
+    tr.moved-up td:first-child{ box-shadow:inset 4px 0 0 rgba(61,255,122,.95); }
+    tr.moved-down td:first-child{ box-shadow:inset 4px 0 0 rgba(255,75,75,.95); }
+
+    /* ===== COLUMNAS ===== */
+    .rank{width:76px;font-weight:1000;}
     .elo{width:92px;font-weight:900;text-align:right;padding-right:12px;}
     .player{min-width:0;}
 
@@ -84,6 +137,7 @@
       text-align:center;
       font-size:18px;
       font-weight:1000;
+      flex:0 0 auto;
     }
     .up{color:#3dff7a;}
     .down{color:#ff4b4b;}
@@ -92,48 +146,17 @@
       width:26px;
       height:18px;
       border-radius:3px;
-    }
-    .cc{
-      font-size:13px;
-      font-weight:1000;
-      opacity:.85;
-      width:28px;
-      text-align:center;
+      flex:0 0 auto;
     }
     .nm{
+      min-width:0;
       overflow:hidden;
       text-overflow:ellipsis;
-    }
-    .from{
-      font-size:13px;
-      font-weight:900;
-      opacity:.75;
-      margin-left:6px;
-    }
-
-    /* ✅ Mantener fondos verde/rojo (sin fondo global) */
-    tr.moved-up td{
-      background:rgba(61,255,122,.14);
-      border-top:1px solid rgba(61,255,122,.22);
-      border-bottom:1px solid rgba(61,255,122,.22);
-    }
-    tr.moved-up td:first-child{
-      box-shadow:inset 4px 0 0 rgba(61,255,122,.75);
-    }
-
-    tr.moved-down td{
-      background:rgba(255,75,75,.14);
-      border-top:1px solid rgba(255,75,75,.22);
-      border-bottom:1px solid rgba(255,75,75,.22);
-    }
-    tr.moved-down td:first-child{
-      box-shadow:inset 4px 0 0 rgba(255,75,75,.75);
     }
   </style>
 </head>
 
 <body>
-  <!-- ✅ Sin header, sin footer: solo tabla -->
   <div class="wrap" id="wrap">
     <table>
       <tbody id="rows"></tbody>
@@ -144,8 +167,9 @@
 /* ================= CONFIG ================= */
 const API = "https://wololo-backend.onrender.com/ranking";
 const REFRESH_MS = 10000;
-const SHOW_MS = 14000;
+const SHOW_MS = 5000;      // ✅ solo 5 segundos visible
 const MAX_ITEMS = 3;
+const STAGGER_MS = 200;    // ✅ 200 ms
 
 /* TEST MODE */
 const TEST_MODE = new URLSearchParams(window.location.search).get("test") === "1";
@@ -157,9 +181,9 @@ function esc(s){
   ));
 }
 function ccToTwemojiFile(cc){
-  if(!cc || cc.length!==2) return "";
+  if(!cc || String(cc).length!==2) return "";
   const A="A".charCodeAt(0);
-  const up=cc.toUpperCase();
+  const up=String(cc).toUpperCase();
   return (
     (0x1F1E6 + up.charCodeAt(0)-A).toString(16) + "-" +
     (0x1F1E6 + up.charCodeAt(1)-A).toString(16)
@@ -172,69 +196,84 @@ function flagImgHtml(cc){
 }
 
 /* ================= STATE ================= */
-let prevRank = new Map();
-let hideTimer=null;
-let everLoaded=false;
+let prevRank = new Map();  // name -> rank
+let hideTimer = null;
+let everLoaded = false;
 
 /* ================= TEST DATA ================= */
 function mockMovers(){
   return [
-    {name:"Hera",country:"ca",cc:"CA",elo:"1589",newRank:1,oldRank:3,delta:+2},
-    {name:"Hearttt",country:"pe",cc:"PE",elo:"1519",newRank:2,oldRank:1,delta:-1},
-    {name:"ACCM",country:"vn",cc:"VN",elo:"1490",newRank:3,oldRank:5,delta:+2}
+    {name:"Hera",country:"ca",elo:"1589",newRank:1,delta:+2},
+    {name:"Hearttt",country:"pe",elo:"1519",newRank:2,delta:-1},
+    {name:"ACCM",country:"vn",elo:"1490",newRank:3,delta:+2}
   ];
 }
 
 /* ================= UI ================= */
 function showPanel(){
-  const w=document.getElementById("wrap");
+  const w = document.getElementById("wrap");
   w.classList.add("show");
   clearTimeout(hideTimer);
-  hideTimer=setTimeout(()=>w.classList.remove("show"),SHOW_MS);
+  hideTimer = setTimeout(() => w.classList.remove("show"), SHOW_MS);
 }
 
 function render(movers){
-  const tb=document.getElementById("rows");
-  tb.innerHTML="";
-  movers.slice(0,MAX_ITEMS).forEach(m=>{
-    const up=m.delta>0;
-    const tr=document.createElement("tr");
-    tr.className=`card ${up?"moved-up":"moved-down"}`;
-    tr.innerHTML=`
-      <td class="rank">#${m.newRank}</td>
-      <td class="elo">${esc(m.elo)}</td>
-      <td class="player">
-        <div class="name">
-          <span class="arrow ${up?"up":"down"}">${up?"▲":"▼"}</span>
-          ${flagImgHtml(m.country)}
-          <span class="cc">${esc(m.cc)}</span>
-          <span class="nm">${esc(m.name)}</span>
-          <span class="from">from #${m.oldRank}</span>
+  const tb = document.getElementById("rows");
+  tb.innerHTML = "";
+
+  const top = movers.slice(0, MAX_ITEMS);
+
+  top.forEach((m, idx) => {
+    const up = m.delta > 0;
+    const tr = document.createElement("tr");
+    tr.className = `card ${up ? "moved-up" : "moved-down"}`;
+
+    tr.innerHTML = `
+      <td colspan="3" style="padding:0;border:none;background:transparent">
+        <div class="fill"></div>
+        <div class="content">
+          <table style="width:100%;border-collapse:collapse">
+            <tr>
+              <td class="rank">#${esc(m.newRank)}</td>
+              <td class="elo">${esc(m.elo)}</td>
+              <td class="player">
+                <div class="name">
+                  <span class="arrow ${up ? "up" : "down"}">${up ? "▲" : "▼"}</span>
+                  ${flagImgHtml(m.country)}
+                  <span class="nm">${esc(m.name)}</span>
+                </div>
+              </td>
+            </tr>
+          </table>
         </div>
-      </td>`;
+      </td>
+    `;
+
     tb.appendChild(tr);
+
+    // Stagger: activa la animación de cada fila una tras otra
+    setTimeout(() => tr.classList.add("in"), idx * STAGGER_MS);
   });
 }
 
-/* ================= LOGIC ================= */
 function computeMovers(data){
-  const movers=[];
-  data.forEach(p=>{
-    const old=prevRank.get(p.name);
-    const now=Number(p.rank);
-    if(old && old!==now){
+  const movers = [];
+  for(const p of data){
+    const old = prevRank.get(p.name);
+    const now = Number(p.rank);
+    if(old && old !== now){
       movers.push({
-        name:p.name,
-        country:(p.country||"").toLowerCase(),
-        cc:(p.country||"").toUpperCase(),
-        elo:p.elo,
-        newRank:now,
-        oldRank:old,
-        delta:old-now
+        name: p.name,
+        country: (p.country || "").toLowerCase(),
+        elo: p.elo,
+        newRank: now,
+        delta: old - now // >0 sube, <0 baja
       });
     }
-  });
-  prevRank=new Map(data.map(x=>[x.name,Number(x.rank)]));
+  }
+  prevRank = new Map(data.map(x => [x.name, Number(x.rank)]));
+
+  // ordenar por impacto (saltos grandes primero)
   movers.sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta));
   return movers;
 }
@@ -247,13 +286,19 @@ async function tick(){
       return;
     }
 
-    const r=await fetch(API,{cache:"no-store"});
+    const r = await fetch(API, { cache:"no-store" });
     if(!r.ok) return;
-    const data=await r.json();
-    if(!Array.isArray(data)||!data.length) return;
+    const data = await r.json();
+    if(!Array.isArray(data) || !data.length) return;
 
-    const movers=computeMovers(data);
-    if(!everLoaded){ everLoaded=true; return; }
+    const movers = computeMovers(data);
+
+    // primera lectura solo inicializa, no muestra
+    if(!everLoaded){
+      everLoaded = true;
+      return;
+    }
+
     if(movers.length){
       render(movers);
       showPanel();
@@ -262,7 +307,7 @@ async function tick(){
 }
 
 tick();
-setInterval(tick,REFRESH_MS);
+setInterval(tick, REFRESH_MS);
 </script>
 </body>
 </html>
