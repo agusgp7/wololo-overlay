@@ -4,10 +4,15 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Vertical Pro ChangePos</title>
-  <style>
-    html,body{margin:0;background:transparent;font-family:Arial,Helvetica,sans-serif;}
 
-    /* Panel oculto por defecto */
+  <style>
+    html,body{
+      margin:0;
+      background:transparent;
+      font-family:Arial,Helvetica,sans-serif;
+    }
+
+    /* ===== PANEL ===== */
     .wrap{
       width:560px;
       padding:12px 14px;
@@ -19,6 +24,7 @@
       transform:translateY(10px);
       transition:opacity .35s ease, transform .35s ease;
       pointer-events:none;
+
       box-shadow:0 14px 44px rgba(0,0,0,.45);
       border:1px solid rgba(255,255,255,.12);
     }
@@ -29,8 +35,8 @@
 
     .head{
       display:flex;
-      align-items:center;
       justify-content:space-between;
+      align-items:center;
       margin-bottom:10px;
     }
     .title{
@@ -48,10 +54,14 @@
       border-radius:999px;
       background:rgba(255,255,255,.10);
       border:1px solid rgba(255,255,255,.14);
-      opacity:.95;
     }
 
-    table{width:100%;border-collapse:separate;border-spacing:0 8px;}
+    table{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:0 8px;
+    }
+
     td{
       font-size:20px;
       padding:10px 10px;
@@ -59,7 +69,6 @@
       white-space:nowrap;
     }
 
-    /* Cada fila es una "card" */
     tr.card td{
       background:rgba(255,255,255,.06);
     }
@@ -73,15 +82,15 @@
     }
 
     .rank{width:72px;font-weight:1000;}
-    .elo{width:92px;font-weight:900;text-align:right;padding-right:12px;opacity:.98;}
-    .player{width:auto;min-width:0;}
+    .elo{width:92px;font-weight:900;text-align:right;padding-right:12px;}
+    .player{min-width:0;}
 
     .name{
       display:flex;
       align-items:center;
       gap:10px;
-      min-width:0;
       font-weight:1000;
+      min-width:0;
     }
 
     .arrow{
@@ -89,39 +98,33 @@
       text-align:center;
       font-size:18px;
       font-weight:1000;
-      flex:0 0 auto;
     }
     .up{color:#3dff7a;}
     .down{color:#ff4b4b;}
 
-    .flag{width:26px;height:18px;border-radius:3px;flex:0 0 auto;}
+    .flag{
+      width:26px;
+      height:18px;
+      border-radius:3px;
+    }
     .cc{
       font-size:13px;
       font-weight:1000;
       opacity:.85;
-      letter-spacing:.6px;
-      text-transform:uppercase;
       width:28px;
       text-align:center;
-      flex:0 0 auto;
     }
     .nm{
-      min-width:0;
       overflow:hidden;
       text-overflow:ellipsis;
     }
-
     .from{
       font-size:13px;
       font-weight:900;
-      letter-spacing:.6px;
-      text-transform:uppercase;
       opacity:.75;
       margin-left:6px;
-      flex:0 0 auto;
     }
 
-    /* Resaltado por movimiento */
     tr.moved-up td{
       background:rgba(61,255,122,.14);
       border-top:1px solid rgba(61,255,122,.22);
@@ -146,168 +149,154 @@
       opacity:.7;
       display:flex;
       justify-content:space-between;
-      gap:10px;
     }
   </style>
 </head>
+
 <body>
-  <div class="wrap" id="wrap">
-    <div class="head">
-      <div class="title">Position changes</div>
-      <div class="pill" id="pill">LIVE</div>
-    </div>
-
-    <table>
-      <tbody id="rows"></tbody>
-    </table>
-
-    <div class="foot">
-      <span id="ts">—</span>
-      <span id="hint">Shows only when ranks change</span>
-    </div>
+<div class="wrap" id="wrap">
+  <div class="head">
+    <div class="title">Position changes</div>
+    <div class="pill" id="pill">LIVE</div>
   </div>
 
-<script>
-const API = "https://wololo-backend.onrender.com/ranking";
-const REFRESH_MS = 10000;     // cada cuánto consulta
-const SHOW_MS = 14000;        // cuánto se muestra cuando hay cambios
-const MAX_ITEMS = 3;          // cuántos cambios mostrar (2 o 3 suelen quedar perfecto)
+  <table>
+    <tbody id="rows"></tbody>
+  </table>
 
-function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));}
+  <div class="foot">
+    <span id="ts">—</span>
+    <span>Appears only on rank changes</span>
+  </div>
+</div>
+
+<script>
+/* ================= CONFIG ================= */
+const API = "https://wololo-backend.onrender.com/ranking";
+const REFRESH_MS = 10000;
+const SHOW_MS = 14000;
+const MAX_ITEMS = 3;
+
+/* TEST MODE */
+const TEST_MODE = new URLSearchParams(window.location.search).get("test") === "1";
+
+/* ================= UTILS ================= */
+function esc(s){
+  return String(s??"").replace(/[&<>"']/g,m=>(
+    {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]
+  ));
+}
 
 function ccToTwemojiFile(cc){
-  if(!cc || String(cc).length !== 2) return "";
-  const up = String(cc).toUpperCase();
-  const A = "A".charCodeAt(0);
-  const cp1 = 0x1F1E6 + (up.charCodeAt(0) - A);
-  const cp2 = 0x1F1E6 + (up.charCodeAt(1) - A);
-  return cp1.toString(16) + "-" + cp2.toString(16);
+  if(!cc || cc.length!==2) return "";
+  const A="A".charCodeAt(0);
+  const up=cc.toUpperCase();
+  return (
+    (0x1F1E6 + up.charCodeAt(0)-A).toString(16) + "-" +
+    (0x1F1E6 + up.charCodeAt(1)-A).toString(16)
+  );
 }
+
 function flagImgHtml(cc){
-  const file = ccToTwemojiFile(cc);
-  if(!file) return "";
-  const url = `https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/svg/${file}.svg`;
-  return `<img class="flag" src="${url}" alt="${esc(cc)}" />`;
+  const f=ccToTwemojiFile(cc);
+  if(!f) return "";
+  return `<img class="flag" src="https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/svg/${f}.svg">`;
 }
 
-let prevRankByName = new Map();     // name -> rankNumber
-let hideTimer = null;
-let everLoaded = false;
+/* ================= STATE ================= */
+let prevRank = new Map();
+let hideTimer=null;
+let everLoaded=false;
 
-function showForAWhile(){
-  const wrap = document.getElementById("wrap");
-  wrap.classList.add("show");
+/* ================= TEST DATA ================= */
+function mockMovers(){
+  return [
+    {name:"Hera",country:"ca",cc:"CA",elo:"1589",newRank:1,oldRank:3,delta:+2},
+    {name:"Hearttt",country:"pe",cc:"PE",elo:"1519",newRank:2,oldRank:1,delta:-1},
+    {name:"ACCM",country:"vn",cc:"VN",elo:"1490",newRank:3,oldRank:5,delta:+2}
+  ];
+}
+
+/* ================= UI ================= */
+function showPanel(){
+  const w=document.getElementById("wrap");
+  w.classList.add("show");
   clearTimeout(hideTimer);
-  hideTimer = setTimeout(() => wrap.classList.remove("show"), SHOW_MS);
-}
-
-function formatTime(){
-  const d = new Date();
-  const hh = String(d.getHours()).padStart(2,"0");
-  const mm = String(d.getMinutes()).padStart(2,"0");
-  const ss = String(d.getSeconds()).padStart(2,"0");
-  return `${hh}:${mm}:${ss}`;
-}
-
-function computeMovers(items){
-  // Devuelve lista de movers: { name, cc, country, elo, newRank, oldRank, delta }
-  // delta > 0 => subió (mejor rank); delta < 0 => bajó
-  const movers = [];
-
-  for(const it of items){
-    const name = it.name;
-    const newRank = Number(it.rank);
-    const oldRank = prevRankByName.has(name) ? Number(prevRankByName.get(name)) : null;
-
-    if(oldRank !== null && Number.isFinite(oldRank) && Number.isFinite(newRank) && oldRank !== newRank){
-      const delta = oldRank - newRank; // positivo => sube
-      movers.push({
-        name,
-        country: (it.country || "").toLowerCase(),
-        cc: (it.country || "").toUpperCase(),
-        elo: String(it.elo ?? ""),
-        newRank, oldRank, delta
-      });
-    }
-  }
-
-  // Actualizar estado previo
-  prevRankByName = new Map(items.map(x => [x.name, Number(x.rank)]));
-
-  // Ordenar por impacto (abs(delta)), y luego por mejor rank
-  movers.sort((a,b) => {
-    const da = Math.abs(a.delta), db = Math.abs(b.delta);
-    if(db !== da) return db - da;
-    return a.newRank - b.newRank;
-  });
-
-  return movers;
+  hideTimer=setTimeout(()=>w.classList.remove("show"),SHOW_MS);
 }
 
 function render(movers){
-  const tb = document.getElementById("rows");
-  tb.innerHTML = "";
-
-  const top = movers.slice(0, MAX_ITEMS);
-
-  for(const m of top){
-    const up = m.delta > 0;
-    const arrowChar = up ? "▲" : "▼";
-    const arrowClass = up ? "up" : "down";
-    const trClass = up ? "card moved-up" : "card moved-down";
-
-    const tr = document.createElement("tr");
-    tr.className = trClass;
-
-    tr.innerHTML = `
-      <td class="rank">#${esc(m.newRank)}</td>
-      <td class="elo">${esc(m.elo)}</td>
+  const tb=document.getElementById("rows");
+  tb.innerHTML="";
+  movers.slice(0,MAX_ITEMS).forEach(m=>{
+    const up=m.delta>0;
+    const tr=document.createElement("tr");
+    tr.className=`card ${up?"moved-up":"moved-down"}`;
+    tr.innerHTML=`
+      <td class="rank">#${m.newRank}</td>
+      <td class="elo">${m.elo}</td>
       <td class="player">
         <div class="name">
-          <span class="arrow ${arrowClass}">${arrowChar}</span>
+          <span class="arrow ${up?"up":"down"}">${up?"▲":"▼"}</span>
           ${flagImgHtml(m.country)}
-          <span class="cc">${esc(m.cc)}</span>
+          <span class="cc">${m.cc}</span>
           <span class="nm">${esc(m.name)}</span>
-          <span class="from">from #${esc(m.oldRank)}</span>
+          <span class="from">from #${m.oldRank}</span>
         </div>
-      </td>
-    `;
+      </td>`;
     tb.appendChild(tr);
-  }
+  });
+  document.getElementById("pill").textContent=`${movers.length} change${movers.length>1?"s":""}`;
+  document.getElementById("ts").textContent=new Date().toLocaleTimeString();
+}
 
-  document.getElementById("ts").textContent = `Updated ${formatTime()}`;
-  document.getElementById("pill").textContent = `${top.length} change${top.length===1?"":"s"}`;
+/* ================= LOGIC ================= */
+function computeMovers(data){
+  const movers=[];
+  data.forEach(p=>{
+    const old=prevRank.get(p.name);
+    const now=Number(p.rank);
+    if(old && old!==now){
+      movers.push({
+        name:p.name,
+        country:p.country,
+        cc:(p.country||"").toUpperCase(),
+        elo:p.elo,
+        newRank:now,
+        oldRank:old,
+        delta:old-now
+      });
+    }
+  });
+  prevRank=new Map(data.map(x=>[x.name,Number(x.rank)]));
+  movers.sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta));
+  return movers;
 }
 
 async function tick(){
   try{
-    const r = await fetch(API, { cache:"no-store" });
-    if(!r.ok) throw new Error("HTTP " + r.status);
-    const data = await r.json();
-    if(!Array.isArray(data) || !data.length) return;
-
-    const movers = computeMovers(data);
-
-    // Primera carga: no mostrar (solo aparece ante cambios).
-    // Si querés mostrar 1 vez al iniciar, descomentá:
-    // if(!everLoaded){ everLoaded = true; return; }
-
-    if(!everLoaded){
-      everLoaded = true;
+    if(TEST_MODE){
+      render(mockMovers());
+      showPanel();
       return;
     }
 
+    const r=await fetch(API,{cache:"no-store"});
+    if(!r.ok) return;
+    const data=await r.json();
+    if(!Array.isArray(data)||!data.length) return;
+
+    const movers=computeMovers(data);
+    if(!everLoaded){ everLoaded=true; return; }
     if(movers.length){
       render(movers);
-      showForAWhile();
+      showPanel();
     }
-  }catch(e){
-    // silencioso: si falla, no aparece
-  }
+  }catch{}
 }
 
 tick();
-setInterval(tick, REFRESH_MS);
+setInterval(tick,REFRESH_MS);
 </script>
 </body>
 </html>
