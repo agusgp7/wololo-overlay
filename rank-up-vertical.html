@@ -1,0 +1,352 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Rank Up Vertical</title>
+  <style>
+    html,body{margin:0;background:transparent;font-family:Arial,Helvetica,sans-serif;}
+    .wrap{
+      width:360px;
+      height:520px;
+      pointer-events:none;
+      position:relative;
+      overflow:visible;
+    }
+
+    /* Popup vertical (oculto por defecto) */
+    .card{
+      position:absolute;
+      left:0; top:0;
+      width:360px;
+      height:520px;
+
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:flex-start;
+      gap:14px;
+
+      padding:18px 16px;
+      border-radius:22px;
+
+      opacity:0;
+      transform:translateY(18px) scale(.985);
+      filter:blur(2px);
+      transition:opacity .25s ease, transform .25s cubic-bezier(.2,.9,.2,1), filter .25s ease;
+      box-shadow:0 18px 60px rgba(0,0,0,.45);
+
+      /* ✅ Fondo verde 0.40 */
+      background:rgba(35, 165, 84, .40);
+
+      /* borde sutil para contraste */
+      border:1px solid rgba(255,255,255,.22);
+      color:#fff; /* ✅ letras blancas */
+      text-align:center;
+    }
+    .card.show{
+      opacity:1;
+      transform:translateY(0) scale(1);
+      filter:blur(0);
+      animation:pop .38s cubic-bezier(.2,.9,.2,1) both;
+    }
+    @keyframes pop{
+      0%{transform:translateY(18px) scale(.985);}
+      65%{transform:translateY(0) scale(1.015);}
+      100%{transform:translateY(0) scale(1);}
+    }
+
+    /* Avatar grande */
+    .avatar{
+      width:220px; height:220px;
+      border-radius:26px;
+      overflow:hidden;
+      background:rgba(0,0,0,.18);
+      border:1px solid rgba(255,255,255,.24);
+      display:grid;
+      place-items:center;
+      margin-top:6px;
+      box-shadow:0 14px 40px rgba(0,0,0,.30);
+    }
+    .avatar img{
+      width:100%; height:100%;
+      object-fit:cover;
+      display:block;
+    }
+    .initials{
+      font-size:64px;
+      font-weight:1000;
+      letter-spacing:1px;
+      opacity:.95;
+    }
+
+    /* Título pequeño opcional (podés borrarlo si querés más limpio) */
+    .tag{
+      margin-top:2px;
+      font-size:14px;
+      font-weight:1000;
+      letter-spacing:2px;
+      text-transform:uppercase;
+      opacity:.92;
+      background:rgba(0,0,0,.18);
+      border:1px solid rgba(255,255,255,.18);
+      padding:8px 14px;
+      border-radius:999px;
+    }
+
+    .name{
+      margin-top:4px;
+      font-size:40px;
+      line-height:1.05;
+      font-weight:1000;
+      max-width:320px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    /* Delta grande */
+    .delta{
+      font-size:54px;
+      line-height:1;
+      font-weight:1000;
+      letter-spacing:.5px;
+      padding:10px 18px;
+      border-radius:18px;
+      background:rgba(0,0,0,.20);
+      border:1px solid rgba(255,255,255,.20);
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+    }
+    .arrow{
+      font-size:46px;
+      line-height:1;
+    }
+
+    .line2{
+      margin-top:6px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+      font-size:18px;
+      font-weight:900;
+      opacity:.95;
+    }
+    .flag{
+      width:30px;height:20px;border-radius:5px;
+      border:1px solid rgba(255,255,255,.25);
+      background:rgba(0,0,0,.15);
+    }
+
+    .small{
+      margin-top:10px;
+      font-size:14px;
+      font-weight:900;
+      opacity:.90;
+      letter-spacing:.6px;
+      text-transform:uppercase;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="card" id="card" aria-hidden="true">
+      <div class="tag">RANK UP</div>
+
+      <div class="avatar" id="avatarBox"></div>
+
+      <div class="name" id="playerName">Player</div>
+
+      <div class="delta" id="deltaPill">
+        <span class="arrow">▲</span>
+        <span id="deltaText">+1</span>
+      </div>
+
+      <div class="line2">
+        <img class="flag" id="flagImg" alt="">
+        <span id="rankText">#10 → #9</span>
+      </div>
+
+      <div class="small" id="eloText">ELO 1400</div>
+    </div>
+  </div>
+
+<script>
+/* ================= CONFIG ================= */
+const API = "https://wololo-backend.onrender.com/ranking";
+const REFRESH_MS = 8000;
+const SHOW_MS = 5000;          // visible 5s
+const COOLDOWN_MS = 2500;
+const AVATAR_BASE = "./avatars/";
+const TEST_MODE = new URLSearchParams(location.search).get("test") === "1";
+
+/* ================= UTILS ================= */
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));}
+
+function slugifyName(name){
+  return String(name||"")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^a-z0-9]+/g,"-")
+    .replace(/^-+|-+$/g,"");
+}
+function initialsFromName(name){
+  const parts = String(name||"").trim().split(/\s+/).filter(Boolean);
+  if(!parts.length) return "??";
+  if(parts.length===1) return parts[0].slice(0,2).toUpperCase();
+  return (parts[0][0] + parts[parts.length-1][0]).toUpperCase();
+}
+
+function ccToTwemojiFile(cc){
+  if(!cc || String(cc).length !== 2) return "";
+  const up = String(cc).toUpperCase();
+  const A = "A".charCodeAt(0);
+  const cp1 = 0x1F1E6 + (up.charCodeAt(0) - A);
+  const cp2 = 0x1F1E6 + (up.charCodeAt(1) - A);
+  return cp1.toString(16) + "-" + cp2.toString(16);
+}
+function flagUrlFromCC(cc){
+  const file = ccToTwemojiFile(cc);
+  if(!file) return "";
+  return `https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/svg/${file}.svg`;
+}
+
+/* ================= STATE ================= */
+let prevRankByName = new Map();
+let prevEloByName  = new Map();
+let everLoaded = false;
+let hideTimer = null;
+let lastShowTs = 0;
+const shownKeySet = new Set();
+
+/* ================= UI ================= */
+function showCard(){
+  const card = document.getElementById("card");
+  card.classList.add("show");
+  card.setAttribute("aria-hidden","false");
+  clearTimeout(hideTimer);
+  hideTimer = setTimeout(()=>{
+    card.classList.remove("show");
+    card.setAttribute("aria-hidden","true");
+  }, SHOW_MS);
+}
+
+function setAvatar(name){
+  const box = document.getElementById("avatarBox");
+  const slug = slugifyName(name);
+  const url = AVATAR_BASE + slug + ".png";
+
+  const img = new Image();
+  img.onload = () => {
+    box.innerHTML = "";
+    const el = document.createElement("img");
+    el.src = url;
+    el.alt = name;
+    box.appendChild(el);
+  };
+  img.onerror = () => {
+    box.innerHTML = `<div class="initials">${esc(initialsFromName(name))}</div>`;
+  };
+  img.src = url;
+}
+
+function updateCard(evt){
+  document.getElementById("playerName").textContent = evt.name;
+  document.getElementById("deltaText").textContent = `+${evt.delta}`;
+  document.getElementById("rankText").textContent  = `#${evt.oldRank} → #${evt.newRank}`;
+  document.getElementById("eloText").textContent   = `ELO ${evt.elo}`;
+
+  const flag = document.getElementById("flagImg");
+  const cc = (evt.country||"").toUpperCase();
+  const fUrl = flagUrlFromCC(cc);
+  if(fUrl){
+    flag.src = fUrl;
+    flag.style.display = "block";
+  }else{
+    flag.removeAttribute("src");
+    flag.style.display = "none";
+  }
+
+  setAvatar(evt.name);
+}
+
+/* ================= LOGIC ================= */
+function pickBestUpEvent(items){
+  const ups = [];
+  for(const it of items){
+    const name = it.name;
+    const newRank = Number(it.rank);
+    const oldRank = prevRankByName.has(name) ? Number(prevRankByName.get(name)) : null;
+
+    if(oldRank !== null && Number.isFinite(oldRank) && Number.isFinite(newRank) && newRank < oldRank){
+      const delta = oldRank - newRank;
+      ups.push({
+        name,
+        delta,
+        oldRank,
+        newRank,
+        country: (it.country||"").toLowerCase(),
+        elo: String(it.elo ?? prevEloByName.get(name) ?? "")
+      });
+    }
+  }
+
+  prevRankByName = new Map(items.map(x=>[x.name, Number(x.rank)]));
+  prevEloByName  = new Map(items.map(x=>[x.name, String(x.elo ?? "")]));
+
+  ups.sort((a,b)=>{
+    if(b.delta !== a.delta) return b.delta - a.delta;
+    if(a.newRank !== b.newRank) return a.newRank - b.newRank;
+    return a.name.localeCompare(b.name);
+  });
+
+  return ups[0] || null;
+}
+
+async function tick(){
+  try{
+    if(TEST_MODE){
+      const evt = {name:"Hera", delta:2, oldRank:3, newRank:1, country:"ca", elo:"1589"};
+      updateCard(evt);
+      showCard();
+      return;
+    }
+
+    const r = await fetch(API, { cache:"no-store" });
+    if(!r.ok) return;
+    const data = await r.json();
+    if(!Array.isArray(data) || !data.length) return;
+
+    if(!everLoaded){
+      everLoaded = true;
+      prevRankByName = new Map(data.map(x=>[x.name, Number(x.rank)]));
+      prevEloByName  = new Map(data.map(x=>[x.name, String(x.elo ?? "")]));
+      return;
+    }
+
+    const evt = pickBestUpEvent(data);
+    if(!evt) return;
+
+    const now = Date.now();
+    if(now - lastShowTs < COOLDOWN_MS) return;
+
+    const key = `${evt.name}|${evt.oldRank}->${evt.newRank}`;
+    if(shownKeySet.has(key)) return;
+    shownKeySet.add(key);
+    if(shownKeySet.size > 120) shownKeySet.clear();
+
+    updateCard(evt);
+    showCard();
+    lastShowTs = now;
+  }catch(e){}
+}
+
+tick();
+setInterval(tick, REFRESH_MS);
+</script>
+</body>
+</html>
