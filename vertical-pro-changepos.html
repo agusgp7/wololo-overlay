@@ -108,11 +108,11 @@
     tr.moved-up .fill{
       background:rgba(61,255,122,.85);
       /* pero como es muy fuerte, lo suavizamos usando mezcla */
-      background:rgba(61,255,122,.50);
+      background:rgba(61,255,122,.80);
       /* y dejamos la opacidad final en .85 del propio elemento */
     }
     tr.moved-down .fill{
-      background:rgba(255,75,75,.50);
+      background:rgba(255,75,75,.80);
     }
 
     /* Barra lateral del movimiento */
@@ -169,7 +169,7 @@ const API = "https://wololo-backend.onrender.com/ranking";
 const REFRESH_MS = 10000;
 const SHOW_MS = 7000;      // ✅ solo 7 segundos visible
 const MAX_ITEMS = 3;
-const STAGGER_MS = 500;    // ✅ 500 ms
+const STAGGER_MS = 200;    // ✅ 200 ms
 
 /* TEST MODE */
 const TEST_MODE = new URLSearchParams(window.location.search).get("test") === "1";
