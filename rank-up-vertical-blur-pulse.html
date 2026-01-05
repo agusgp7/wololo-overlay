@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Rank Up Vertical (Blur + Pulse)</title>
+
   <style>
     html,body{margin:0;background:transparent;font-family:Arial,Helvetica,sans-serif;}
     .wrap{width:360px;height:520px;pointer-events:none;position:relative;}
@@ -42,8 +43,6 @@
       background-color:rgba(35,165,84,.40);
       filter:blur(14px) saturate(1.1) contrast(1.05);
       transform:scale(1.06);
-      opacity:.95;
-      transition:filter .45s ease, transform .45s ease;
       z-index:0;
     }
     .card.show .bg{
@@ -64,7 +63,7 @@
       gap:14px;
     }
 
-    /* ===== TOP: bandera + cambio centrado ===== */
+    /* Top: bandera + cambio de rank */
     .topRow{
       display:flex;
       align-items:center;
@@ -77,24 +76,24 @@
       border:1px solid rgba(255,255,255,.28);
       background:rgba(0,0,0,.18);
       box-shadow:0 10px 28px rgba(0,0,0,.25);
+      display:none;
     }
     .rankChangeTop{
       font-size:22px;
       font-weight:1000;
-      letter-spacing:.4px;
       padding:8px 14px;
       border-radius:14px;
       background:rgba(0,0,0,.16);
       border:1px solid rgba(255,255,255,.18);
       backdrop-filter:blur(4px);
       text-shadow:0 4px 18px rgba(0,0,0,.35);
-      white-space:nowrap;
     }
 
     /* Avatar */
     .avatar{
       width:240px;height:240px;border-radius:30px;overflow:hidden;
-      background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.24);
+      background:rgba(0,0,0,.18);
+      border:1px solid rgba(255,255,255,.24);
       display:grid;place-items:center;
       box-shadow:0 14px 40px rgba(0,0,0,.30);
     }
@@ -117,7 +116,6 @@
       border:1px solid rgba(120,255,180,.65);
       display:inline-flex;align-items:center;gap:10px;
       color:#7CFFB4;
-      backdrop-filter:blur(4px);
     }
     .arrow{font-size:46px;color:#4CFF9A;}
 
@@ -148,13 +146,18 @@
     <div class="content">
       <div class="topRow">
         <img class="topFlag" id="flagTop">
-        <div class="rankChangeTop" id="rankTextTop">#10 → #9</div>
+        <div class="rankChangeTop" id="rankTextTop">#3 → #1</div>
       </div>
 
       <div class="avatar" id="avatarBox"></div>
       <div class="name" id="playerName">Player</div>
-      <div class="delta"><span class="arrow">▲</span><span id="deltaText">+1</span></div>
-      <div class="small" id="eloText">ELO 1400</div>
+
+      <div class="delta">
+        <span class="arrow">▲</span>
+        <span id="deltaText">+2</span>
+      </div>
+
+      <div class="small" id="eloText">ELO 1589</div>
     </div>
   </div>
 </div>
@@ -162,22 +165,33 @@
 <script>
 const API="https://wololo-backend.onrender.com/ranking";
 const REFRESH_MS=8000;
-const SHOW_MS=8000; // ⬅️ 8 segundos
+const SHOW_MS=8000;
 const AVATAR_BASE="./avatars/";
 const TEST_MODE=new URLSearchParams(location.search).get("test")==="1";
 
-function slugify(n){return n.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-");}
-function ccFlag(cc){
+/* 🇨🇦🇦🇷 etc → PNG (OBS-safe) */
+function countryFlag(cc){
   if(!cc||cc.length!==2)return"";
   const A="A".charCodeAt(0);
-  const c1=0x1F1E6+(cc[0].toUpperCase().charCodeAt(0)-A);
-  const c2=0x1F1E6+(cc[1].toUpperCase().charCodeAt(1)-A);
-  return `https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/svg/${c1.toString(16)}-${c2.toString(16)}.svg`;
+  const up=cc.toUpperCase();
+  const c1=0x1F1E6+(up.charCodeAt(0)-A);
+  const c2=0x1F1E6+(up.charCodeAt(1)-A);
+  return `https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/72x72/${c1.toString(16)}-${c2.toString(16)}.png`;
+}
+
+function slugify(n){
+  return n.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-");
 }
 
 let prev=new Map(), loaded=false, hideT;
 
-function show(){const c=document.getElementById("card");c.classList.add("show");clearTimeout(hideT);hideT=setTimeout(()=>c.classList.remove("show"),SHOW_MS);}
+function show(){
+  const c=document.getElementById("card");
+  c.classList.add("show");
+  clearTimeout(hideT);
+  hideT=setTimeout(()=>c.classList.remove("show"),SHOW_MS);
+}
+
 function avatar(name){
   const box=document.getElementById("avatarBox");
   const img=new Image();
@@ -186,13 +200,34 @@ function avatar(name){
   img.src=`${AVATAR_BASE}${slugify(name)}.png`;
 }
 
+function update(e){
+  document.getElementById("playerName").textContent=e.name;
+  document.getElementById("deltaText").textContent=`+${e.old-e.rank}`;
+  document.getElementById("rankTextTop").textContent=`#${e.old} → #${e.rank}`;
+  document.getElementById("eloText").textContent=`ELO ${e.elo}`;
+
+  const f=document.getElementById("flagTop");
+  const url=countryFlag((e.country||"").toUpperCase());
+  if(url){
+    f.onload=()=>f.style.display="block";
+    f.onerror=()=>f.style.display="none";
+    f.src=url;
+  }else{
+    f.style.display="none";
+    f.removeAttribute("src");
+  }
+
+  avatar(e.name);
+}
+
 async function tick(){
   if(TEST_MODE){
     update({name:"Hera",rank:1,old:3,elo:1589,country:"ca"});
     show();return;
   }
   const r=await fetch(API,{cache:"no-store"}); if(!r.ok)return;
-  const d=await r.json(); if(!loaded){d.forEach(x=>prev.set(x.name,x.rank));loaded=true;return;}
+  const d=await r.json();
+  if(!loaded){d.forEach(x=>prev.set(x.name,x.rank));loaded=true;return;}
   for(const x of d){
     if(prev.has(x.name)&&x.rank<prev.get(x.name)){
       update({name:x.name,rank:x.rank,old:prev.get(x.name),elo:x.elo,country:x.country});
@@ -200,15 +235,6 @@ async function tick(){
     }
   }
   prev.clear(); d.forEach(x=>prev.set(x.name,x.rank));
-}
-
-function update(e){
-  document.getElementById("playerName").textContent=e.name;
-  document.getElementById("deltaText").textContent=`+${e.old-e.rank}`;
-  document.getElementById("rankTextTop").textContent=`#${e.old} → #${e.rank}`;
-  document.getElementById("eloText").textContent=`ELO ${e.elo}`;
-  const f=document.getElementById("flagTop"); f.src=ccFlag((e.country||"").toUpperCase());
-  avatar(e.name);
 }
 
 tick(); setInterval(tick,REFRESH_MS);
