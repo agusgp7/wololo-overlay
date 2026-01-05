@@ -11,7 +11,8 @@
     .card{
       position:absolute;inset:0;
       display:flex;flex-direction:column;align-items:center;
-      gap:14px;padding:18px 16px;border-radius:22px;
+      gap:12px;
+      padding:18px 16px;border-radius:22px;
       color:#fff;text-align:center;
       border:1px solid rgba(255,255,255,.22);
       box-shadow:0 18px 60px rgba(0,0,0,.45);
@@ -20,7 +21,7 @@
       transform:translateY(18px) scale(.985);
       filter:blur(2px);
       transition:opacity .25s ease, transform .25s cubic-bezier(.2,.9,.2,1), filter .25s ease;
-      overflow:hidden; /* para que el blur no se salga */
+      overflow:hidden;
     }
     .card.show{
       opacity:1;
@@ -34,96 +35,110 @@
       100%{transform:translateY(0) scale(1);}
     }
 
-    /* ===== Fondo con blur dinámico ===== */
+    /* Fondo blur dinámico */
     .bg{
-      position:absolute;inset:-18px; /* margen para que el blur no corte */
-      background:
-        url("./backgrounds/rankup-vertical.png") center/cover no-repeat;
-      /* fallback si no hay imagen */
-      background-color:rgba(35,165,84,.40);
-
+      position:absolute;inset:-18px;
+      background:url("./backgrounds/rankup-vertical.png") center/cover no-repeat;
+      background-color:rgba(35,165,84,.40); /* fallback */
       filter:blur(14px) saturate(1.1) contrast(1.05);
       transform:scale(1.06);
       opacity:.95;
       transition:filter .45s ease, transform .45s ease, opacity .45s ease;
       z-index:0;
+      pointer-events:none;
     }
-    /* Cuando aparece, animamos el blur (dinámico) */
     .card.show .bg{
       filter:blur(8px) saturate(1.15) contrast(1.08);
       transform:scale(1.02);
       opacity:1;
     }
 
-    /* Capa para oscurecer un poco y mejorar legibilidad */
+    /* Sombra para legibilidad */
     .shade{
       position:absolute;inset:0;
-      background:linear-gradient(to bottom, rgba(0,0,0,.20), rgba(0,0,0,.35));
+      background:linear-gradient(to bottom, rgba(0,0,0,.18), rgba(0,0,0,.38));
       z-index:1;
+      pointer-events:none;
     }
 
-    /* Contenido encima del fondo */
-    .content{position:relative;z-index:2;width:100%;display:flex;flex-direction:column;align-items:center;gap:14px;}
-
-    .tag{
-      margin-top:2px;font-size:14px;font-weight:1000;letter-spacing:2px;text-transform:uppercase;
-      opacity:.92;background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.18);
-      padding:8px 14px;border-radius:999px;
-      backdrop-filter:blur(4px);
+    .content{
+      position:relative;z-index:2;
+      width:100%;
+      display:flex;flex-direction:column;align-items:center;
+      gap:12px;
     }
 
+    /* ===== TOP FLAG (reemplaza RANK UP) ===== */
+    .top-flag{
+      width:54px;height:40px;border-radius:10px;
+      border:1px solid rgba(255,255,255,.28);
+      background:rgba(0,0,0,.18);
+      box-shadow:0 10px 28px rgba(0,0,0,.25);
+      margin-top:2px;
+    }
+
+    /* Avatar grande */
     .avatar{
-      width:220px;height:220px;border-radius:26px;overflow:hidden;
+      width:230px;height:230px;border-radius:28px;overflow:hidden;
       background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.24);
-      display:grid;place-items:center;margin-top:6px;
+      display:grid;place-items:center;
       box-shadow:0 14px 40px rgba(0,0,0,.30);
+      margin-top:2px;
     }
     .avatar img{width:100%;height:100%;object-fit:cover;display:block;}
     .initials{font-size:64px;font-weight:1000;letter-spacing:1px;opacity:.95;}
 
+    /* Nombre */
     .name{
-      margin-top:4px;font-size:40px;line-height:1.05;font-weight:1000;
-      max-width:320px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+      margin-top:2px;
+      font-size:40px;
+      line-height:1.05;
+      font-weight:1000;
+      max-width:320px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
       text-shadow:0 4px 18px rgba(0,0,0,.35);
     }
 
+    /* ▲ +2 verde */
     .delta{
-  font-size:54px;
-  line-height:1;
-  font-weight:1000;
-  letter-spacing:.5px;
-  padding:10px 18px;
-  border-radius:18px;
-  background:rgba(0,0,0,.20);
-  border:1px solid rgba(120, 255, 180, .65);
-  display:inline-flex;
-  align-items:center;
-  gap:10px;
-  backdrop-filter:blur(4px);
+      font-size:54px;line-height:1;font-weight:1000;letter-spacing:.5px;
+      padding:10px 18px;border-radius:18px;
+      background:rgba(0,0,0,.20);
+      border:1px solid rgba(120, 255, 180, .65);
+      display:inline-flex;align-items:center;gap:10px;
+      backdrop-filter:blur(4px);
+      color:#7CFFB4; /* verde principal */
+    }
+    .arrow{
+      font-size:46px;line-height:1;
+      color:#4CFF9A;
+    }
 
-  color:#7CFFB4; /* verde principal */
-}
-
-.arrow{
-  font-size:46px;
-  line-height:1;
-  color:#4CFF9A; /* verde flecha */
-}
-
-
-    .line2{
-      margin-top:6px;display:flex;align-items:center;justify-content:center;gap:10px;
-      font-size:18px;font-weight:900;opacity:.95;
+    /* Rank change GRANDE (casi como nombre) */
+    .rankChange{
+      margin-top:4px;
+      font-size:34px;
+      line-height:1;
+      font-weight:1000;
+      letter-spacing:.5px;
+      padding:10px 16px;
+      border-radius:16px;
+      background:rgba(0,0,0,.16);
+      border:1px solid rgba(255,255,255,.18);
+      backdrop-filter:blur(4px);
       text-shadow:0 4px 18px rgba(0,0,0,.35);
     }
-    .flag{
-      width:30px;height:20px;border-radius:5px;
-      border:1px solid rgba(255,255,255,.25);
-      background:rgba(0,0,0,.15);
-    }
 
+    /* Elo (si lo querés mantener peque) */
     .small{
-      margin-top:10px;font-size:14px;font-weight:900;opacity:.90;letter-spacing:.6px;text-transform:uppercase;
+      margin-top:2px;
+      font-size:14px;
+      font-weight:900;
+      opacity:.90;
+      letter-spacing:.6px;
+      text-transform:uppercase;
       text-shadow:0 4px 18px rgba(0,0,0,.35);
     }
   </style>
@@ -136,14 +151,22 @@
       <div class="shade"></div>
 
       <div class="content">
-        <div class="tag">RANK UP</div>
+        <!-- 1) Bandera arriba -->
+        <img class="top-flag" id="flagTop" alt="">
+
+        <!-- 2) Foto -->
         <div class="avatar" id="avatarBox"></div>
+
+        <!-- 3) Nombre -->
         <div class="name" id="playerName">Player</div>
+
+        <!-- 4) ▲ +2 -->
         <div class="delta"><span class="arrow">▲</span><span id="deltaText">+1</span></div>
-        <div class="line2">
-          <img class="flag" id="flagImg" alt="">
-          <span id="rankText">#10 → #9</span>
-        </div>
+
+        <!-- 5) #3 -> #1 (grande) -->
+        <div class="rankChange" id="rankText">#10 → #9</div>
+
+        <!-- (opcional) ELO abajo -->
         <div class="small" id="eloText">ELO 1400</div>
       </div>
     </div>
@@ -158,8 +181,16 @@ const TEST_MODE=new URLSearchParams(location.search).get("test")==="1";
 function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));}
 function slugifyName(name){return String(name||"").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");}
 function initialsFromName(name){const p=String(name||"").trim().split(/\s+/).filter(Boolean); if(!p.length) return "??"; if(p.length===1) return p[0].slice(0,2).toUpperCase(); return (p[0][0]+p[p.length-1][0]).toUpperCase();}
-function ccToTwemojiFile(cc){if(!cc||String(cc).length!==2) return ""; const up=String(cc).toUpperCase(); const A="A".charCodeAt(0); const cp1=0x1F1E6+(up.charCodeAt(0)-A); const cp2=0x1F1E6+(up.charCodeAt(1)-A); return cp1.toString(16)+"-"+cp2.toString(16);}
-function flagUrlFromCC(cc){const f=ccToTwemojiFile(cc); return f?`https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/svg/${f}.svg`:"";}
+function ccToTwemojiFile(cc){
+  if(!cc||String(cc).length!==2) return "";
+  const up=String(cc).toUpperCase(), A="A".charCodeAt(0);
+  const cp1=0x1F1E6+(up.charCodeAt(0)-A), cp2=0x1F1E6+(up.charCodeAt(1)-A);
+  return cp1.toString(16)+"-"+cp2.toString(16);
+}
+function flagUrlFromCC(cc){
+  const f=ccToTwemojiFile(cc);
+  return f?`https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/svg/${f}.svg`:"";
+}
 
 let prevRankByName=new Map(), prevEloByName=new Map(), everLoaded=false;
 let hideTimer=null, lastShowTs=0;
@@ -172,6 +203,7 @@ function showCard(){
   clearTimeout(hideTimer);
   hideTimer=setTimeout(()=>{card.classList.remove("show");card.setAttribute("aria-hidden","true");},SHOW_MS);
 }
+
 function setAvatar(name){
   const box=document.getElementById("avatarBox");
   const url=AVATAR_BASE+slugifyName(name)+".png";
@@ -180,24 +212,42 @@ function setAvatar(name){
   img.onerror=()=>{box.innerHTML=`<div class="initials">${esc(initialsFromName(name))}</div>`;};
   img.src=url;
 }
+
 function updateCard(evt){
   document.getElementById("playerName").textContent=evt.name;
   document.getElementById("deltaText").textContent=`+${evt.delta}`;
   document.getElementById("rankText").textContent=`#${evt.oldRank} → #${evt.newRank}`;
   document.getElementById("eloText").textContent=`ELO ${evt.elo}`;
-  const flag=document.getElementById("flagImg");
+
+  // Bandera arriba
+  const flagTop=document.getElementById("flagTop");
   const cc=(evt.country||"").toUpperCase();
   const fUrl=flagUrlFromCC(cc);
-  if(fUrl){flag.src=fUrl; flag.style.display="block";} else {flag.removeAttribute("src"); flag.style.display="none";}
+  if(fUrl){
+    flagTop.src=fUrl;
+    flagTop.style.display="block";
+  }else{
+    flagTop.removeAttribute("src");
+    flagTop.style.display="none";
+  }
+
   setAvatar(evt.name);
 }
+
 function pickBestUpEvent(items){
   const ups=[];
   for(const it of items){
     const old=prevRankByName.has(it.name)?Number(prevRankByName.get(it.name)):null;
     const now=Number(it.rank);
     if(old!==null && Number.isFinite(old)&&Number.isFinite(now)&& now<old){
-      ups.push({name:it.name, delta:(old-now), oldRank:old, newRank:now, country:(it.country||"").toLowerCase(), elo:String(it.elo??prevEloByName.get(it.name)??"")});
+      ups.push({
+        name:it.name,
+        delta:(old-now),
+        oldRank:old,
+        newRank:now,
+        country:(it.country||"").toLowerCase(),
+        elo:String(it.elo??prevEloByName.get(it.name)??"")
+      });
     }
   }
   prevRankByName=new Map(items.map(x=>[x.name,Number(x.rank)]));
@@ -214,14 +264,31 @@ async function tick(){
     }
     const r=await fetch(API,{cache:"no-store"}); if(!r.ok) return;
     const data=await r.json(); if(!Array.isArray(data)||!data.length) return;
-    if(!everLoaded){ everLoaded=true; prevRankByName=new Map(data.map(x=>[x.name,Number(x.rank)])); prevEloByName=new Map(data.map(x=>[x.name,String(x.elo??"")])); return; }
-    const evt=pickBestUpEvent(data); if(!evt) return;
-    const now=Date.now(); if(now-lastShowTs<COOLDOWN_MS) return;
-    const key=`${evt.name}|${evt.oldRank}->${evt.newRank}`; if(shownKeySet.has(key)) return;
-    shownKeySet.add(key); if(shownKeySet.size>120) shownKeySet.clear();
-    updateCard(evt); showCard(); lastShowTs=now;
+
+    if(!everLoaded){
+      everLoaded=true;
+      prevRankByName=new Map(data.map(x=>[x.name,Number(x.rank)]));
+      prevEloByName=new Map(data.map(x=>[x.name,String(x.elo??"")]));
+      return;
+    }
+
+    const evt=pickBestUpEvent(data);
+    if(!evt) return;
+
+    const now=Date.now();
+    if(now-lastShowTs<COOLDOWN_MS) return;
+
+    const key=`${evt.name}|${evt.oldRank}->${evt.newRank}`;
+    if(shownKeySet.has(key)) return;
+    shownKeySet.add(key);
+    if(shownKeySet.size>120) shownKeySet.clear();
+
+    updateCard(evt);
+    showCard();
+    lastShowTs=now;
   }catch{}
 }
+
 tick(); setInterval(tick,REFRESH_MS);
 </script>
 </body>
