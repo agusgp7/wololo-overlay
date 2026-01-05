@@ -1,0 +1,213 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Rank Up Vertical (Blur)</title>
+  <style>
+    html,body{margin:0;background:transparent;font-family:Arial,Helvetica,sans-serif;}
+    .wrap{width:360px;height:520px;pointer-events:none;position:relative;}
+
+    .card{
+      position:absolute;inset:0;
+      display:flex;flex-direction:column;align-items:center;
+      gap:14px;padding:18px 16px;border-radius:22px;
+      color:#fff;text-align:center;
+      border:1px solid rgba(255,255,255,.22);
+      box-shadow:0 18px 60px rgba(0,0,0,.45);
+
+      opacity:0;
+      transform:translateY(18px) scale(.985);
+      filter:blur(2px);
+      transition:opacity .25s ease, transform .25s cubic-bezier(.2,.9,.2,1), filter .25s ease;
+      overflow:hidden; /* para que el blur no se salga */
+    }
+    .card.show{
+      opacity:1;
+      transform:translateY(0) scale(1);
+      filter:blur(0);
+      animation:pop .38s cubic-bezier(.2,.9,.2,1) both;
+    }
+    @keyframes pop{
+      0%{transform:translateY(18px) scale(.985);}
+      65%{transform:translateY(0) scale(1.015);}
+      100%{transform:translateY(0) scale(1);}
+    }
+
+    /* ===== Fondo con blur dinámico ===== */
+    .bg{
+      position:absolute;inset:-18px; /* margen para que el blur no corte */
+      background:
+        url("./backgrounds/rankup-vertical.png") center/cover no-repeat;
+      /* fallback si no hay imagen */
+      background-color:rgba(35,165,84,.40);
+
+      filter:blur(14px) saturate(1.1) contrast(1.05);
+      transform:scale(1.06);
+      opacity:.95;
+      transition:filter .45s ease, transform .45s ease, opacity .45s ease;
+      z-index:0;
+    }
+    /* Cuando aparece, animamos el blur (dinámico) */
+    .card.show .bg{
+      filter:blur(8px) saturate(1.15) contrast(1.08);
+      transform:scale(1.02);
+      opacity:1;
+    }
+
+    /* Capa para oscurecer un poco y mejorar legibilidad */
+    .shade{
+      position:absolute;inset:0;
+      background:linear-gradient(to bottom, rgba(0,0,0,.20), rgba(0,0,0,.35));
+      z-index:1;
+    }
+
+    /* Contenido encima del fondo */
+    .content{position:relative;z-index:2;width:100%;display:flex;flex-direction:column;align-items:center;gap:14px;}
+
+    .tag{
+      margin-top:2px;font-size:14px;font-weight:1000;letter-spacing:2px;text-transform:uppercase;
+      opacity:.92;background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.18);
+      padding:8px 14px;border-radius:999px;
+      backdrop-filter:blur(4px);
+    }
+
+    .avatar{
+      width:220px;height:220px;border-radius:26px;overflow:hidden;
+      background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.24);
+      display:grid;place-items:center;margin-top:6px;
+      box-shadow:0 14px 40px rgba(0,0,0,.30);
+    }
+    .avatar img{width:100%;height:100%;object-fit:cover;display:block;}
+    .initials{font-size:64px;font-weight:1000;letter-spacing:1px;opacity:.95;}
+
+    .name{
+      margin-top:4px;font-size:40px;line-height:1.05;font-weight:1000;
+      max-width:320px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+      text-shadow:0 4px 18px rgba(0,0,0,.35);
+    }
+
+    .delta{
+      font-size:54px;line-height:1;font-weight:1000;letter-spacing:.5px;
+      padding:10px 18px;border-radius:18px;
+      background:rgba(0,0,0,.20);border:1px solid rgba(255,255,255,.20);
+      display:inline-flex;align-items:center;gap:10px;
+      backdrop-filter:blur(4px);
+    }
+    .arrow{font-size:46px;line-height:1;}
+
+    .line2{
+      margin-top:6px;display:flex;align-items:center;justify-content:center;gap:10px;
+      font-size:18px;font-weight:900;opacity:.95;
+      text-shadow:0 4px 18px rgba(0,0,0,.35);
+    }
+    .flag{
+      width:30px;height:20px;border-radius:5px;
+      border:1px solid rgba(255,255,255,.25);
+      background:rgba(0,0,0,.15);
+    }
+
+    .small{
+      margin-top:10px;font-size:14px;font-weight:900;opacity:.90;letter-spacing:.6px;text-transform:uppercase;
+      text-shadow:0 4px 18px rgba(0,0,0,.35);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="card" id="card" aria-hidden="true">
+      <div class="bg"></div>
+      <div class="shade"></div>
+
+      <div class="content">
+        <div class="tag">RANK UP</div>
+        <div class="avatar" id="avatarBox"></div>
+        <div class="name" id="playerName">Player</div>
+        <div class="delta"><span class="arrow">▲</span><span id="deltaText">+1</span></div>
+        <div class="line2">
+          <img class="flag" id="flagImg" alt="">
+          <span id="rankText">#10 → #9</span>
+        </div>
+        <div class="small" id="eloText">ELO 1400</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const API="https://wololo-backend.onrender.com/ranking";
+const REFRESH_MS=8000, SHOW_MS=5000, COOLDOWN_MS=2500;
+const AVATAR_BASE="./avatars/";
+const TEST_MODE=new URLSearchParams(location.search).get("test")==="1";
+
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));}
+function slugifyName(name){return String(name||"").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");}
+function initialsFromName(name){const p=String(name||"").trim().split(/\s+/).filter(Boolean); if(!p.length) return "??"; if(p.length===1) return p[0].slice(0,2).toUpperCase(); return (p[0][0]+p[p.length-1][0]).toUpperCase();}
+function ccToTwemojiFile(cc){if(!cc||String(cc).length!==2) return ""; const up=String(cc).toUpperCase(); const A="A".charCodeAt(0); const cp1=0x1F1E6+(up.charCodeAt(0)-A); const cp2=0x1F1E6+(up.charCodeAt(1)-A); return cp1.toString(16)+"-"+cp2.toString(16);}
+function flagUrlFromCC(cc){const f=ccToTwemojiFile(cc); return f?`https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/svg/${f}.svg`:"";}
+
+let prevRankByName=new Map(), prevEloByName=new Map(), everLoaded=false;
+let hideTimer=null, lastShowTs=0;
+const shownKeySet=new Set();
+
+function showCard(){
+  const card=document.getElementById("card");
+  card.classList.add("show");
+  card.setAttribute("aria-hidden","false");
+  clearTimeout(hideTimer);
+  hideTimer=setTimeout(()=>{card.classList.remove("show");card.setAttribute("aria-hidden","true");},SHOW_MS);
+}
+function setAvatar(name){
+  const box=document.getElementById("avatarBox");
+  const url=AVATAR_BASE+slugifyName(name)+".png";
+  const img=new Image();
+  img.onload=()=>{box.innerHTML=""; const el=document.createElement("img"); el.src=url; el.alt=name; box.appendChild(el);};
+  img.onerror=()=>{box.innerHTML=`<div class="initials">${esc(initialsFromName(name))}</div>`;};
+  img.src=url;
+}
+function updateCard(evt){
+  document.getElementById("playerName").textContent=evt.name;
+  document.getElementById("deltaText").textContent=`+${evt.delta}`;
+  document.getElementById("rankText").textContent=`#${evt.oldRank} → #${evt.newRank}`;
+  document.getElementById("eloText").textContent=`ELO ${evt.elo}`;
+  const flag=document.getElementById("flagImg");
+  const cc=(evt.country||"").toUpperCase();
+  const fUrl=flagUrlFromCC(cc);
+  if(fUrl){flag.src=fUrl; flag.style.display="block";} else {flag.removeAttribute("src"); flag.style.display="none";}
+  setAvatar(evt.name);
+}
+function pickBestUpEvent(items){
+  const ups=[];
+  for(const it of items){
+    const old=prevRankByName.has(it.name)?Number(prevRankByName.get(it.name)):null;
+    const now=Number(it.rank);
+    if(old!==null && Number.isFinite(old)&&Number.isFinite(now)&& now<old){
+      ups.push({name:it.name, delta:(old-now), oldRank:old, newRank:now, country:(it.country||"").toLowerCase(), elo:String(it.elo??prevEloByName.get(it.name)??"")});
+    }
+  }
+  prevRankByName=new Map(items.map(x=>[x.name,Number(x.rank)]));
+  prevEloByName=new Map(items.map(x=>[x.name,String(x.elo??"")]));
+  ups.sort((a,b)=> b.delta-a.delta || a.newRank-b.newRank || a.name.localeCompare(b.name));
+  return ups[0]||null;
+}
+
+async function tick(){
+  try{
+    if(TEST_MODE){
+      updateCard({name:"Hera", delta:2, oldRank:3, newRank:1, country:"ca", elo:"1589"});
+      showCard(); return;
+    }
+    const r=await fetch(API,{cache:"no-store"}); if(!r.ok) return;
+    const data=await r.json(); if(!Array.isArray(data)||!data.length) return;
+    if(!everLoaded){ everLoaded=true; prevRankByName=new Map(data.map(x=>[x.name,Number(x.rank)])); prevEloByName=new Map(data.map(x=>[x.name,String(x.elo??"")])); return; }
+    const evt=pickBestUpEvent(data); if(!evt) return;
+    const now=Date.now(); if(now-lastShowTs<COOLDOWN_MS) return;
+    const key=`${evt.name}|${evt.oldRank}->${evt.newRank}`; if(shownKeySet.has(key)) return;
+    shownKeySet.add(key); if(shownKeySet.size>120) shownKeySet.clear();
+    updateCard(evt); showCard(); lastShowTs=now;
+  }catch{}
+}
+tick(); setInterval(tick,REFRESH_MS);
+</script>
+</body>
+</html>
