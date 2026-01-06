@@ -1,173 +1,12 @@
-<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Rank Up Vertical (Blur + Pulse)</title>
-
-  <style>
-    html,body{margin:0;background:transparent;font-family:Arial,Helvetica,sans-serif;}
-    .wrap{width:360px;height:520px;pointer-events:none;position:relative;}
-
-    .card{
-      position:absolute;inset:0;
-      display:flex;flex-direction:column;align-items:center;
-      gap:14px;
-      padding:18px 16px;border-radius:22px;
-      color:#fff;text-align:center;
-      border:1px solid rgba(255,255,255,.22);
-      box-shadow:0 18px 60px rgba(0,0,0,.45);
-
-      opacity:0;
-      transform:translateY(18px) scale(.985);
-      filter:blur(2px);
-      transition:opacity .25s ease, transform .25s cubic-bezier(.2,.9,.2,1), filter .25s ease;
-      overflow:hidden;
-    }
-    .card.show{
-      opacity:1;
-      transform:translateY(0) scale(1);
-      filter:blur(0);
-      animation:pop .38s cubic-bezier(.2,.9,.2,1) both;
-    }
-    @keyframes pop{
-      0%{transform:translateY(18px) scale(.985);}
-      65%{transform:translateY(0) scale(1.015);}
-      100%{transform:translateY(0) scale(1);}
-    }
-
-    /* Fondo blur */
-    .bg{
-      position:absolute;inset:-18px;
-      background:url("./backgrounds/rankup-vertical.png") center/cover no-repeat;
-      background-color:rgba(35,165,84,.40);
-      filter:blur(14px) saturate(1.1) contrast(1.05);
-      transform:scale(1.06);
-      z-index:0;
-    }
-    .card.show .bg{
-      filter:blur(8px) saturate(1.15) contrast(1.08);
-      transform:scale(1.02);
-    }
-
-    .shade{
-      position:absolute;inset:0;
-      background:linear-gradient(to bottom, rgba(0,0,0,.18), rgba(0,0,0,.38));
-      z-index:1;
-    }
-
-    .content{
-      position:relative;z-index:2;
-      width:100%;
-      display:flex;flex-direction:column;align-items:center;
-      gap:14px;
-    }
-
-    /* Top: bandera + cambio de rank */
-    .topRow{
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      gap:14px;
-      margin-top:4px;
-    }
-    .topFlag{
-      width:54px;height:40px;border-radius:10px;
-      border:1px solid rgba(255,255,255,.28);
-      background:rgba(0,0,0,.18);
-      box-shadow:0 10px 28px rgba(0,0,0,.25);
-      display:none;
-    }
-    .rankChangeTop{
-      font-size:26px;
-      font-weight:1000;
-      padding:8px 14px;
-      border-radius:14px;
-      background:rgba(0,0,0,.16);
-      border:1px solid rgba(255,255,255,.18);
-      backdrop-filter:blur(4px);
-      text-shadow:0 4px 18px rgba(0,0,0,.35);
-    }
-
-    /* Avatar */
-    .avatar{
-      width:240px;height:240px;border-radius:30px;overflow:hidden;
-      background:rgba(0,0,0,.18);
-      border:1px solid rgba(255,255,255,.24);
-      display:grid;place-items:center;
-      box-shadow:0 14px 40px rgba(0,0,0,.30);
-    }
-    .avatar img{width:100%;height:100%;object-fit:cover;}
-    .initials{font-size:64px;font-weight:1000;}
-
-    /* Nombre */
-    .name{
-      font-size:40px;font-weight:1000;
-      max-width:330px;
-      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-      text-shadow:0 4px 18px rgba(0,0,0,.35);
-    }
-
-    /* ▲ +2 con 3 pulsos */
-    .delta{
-      font-size:48px;font-weight:1000;
-      padding:10px 18px;border-radius:18px;
-      background:rgba(0,0,0,.20);
-      border:1px solid rgba(120,255,180,.65);
-      display:inline-flex;align-items:center;gap:10px;
-      color:#7CFFB4;
-    }
-    .arrow{font-size:46px;color:#4CFF9A;}
-
-    .card.show .delta{
-      animation:pulse 900ms ease-out 3;
-    }
-    @keyframes pulse{
-      0%{transform:scale(1);}
-      40%{transform:scale(1.07);filter:drop-shadow(0 0 16px rgba(76,255,154,.6));}
-      70%{transform:scale(.99);}
-      100%{transform:scale(1);}
-    }
-
-    .small{
-      font-size:14px;font-weight:900;opacity:.9;
-      text-transform:uppercase;
-      text-shadow:0 4px 18px rgba(0,0,0,.35);
-    }
-  </style>
-</head>
-
-<body>
-<div class="wrap">
-  <div class="card" id="card">
-    <div class="bg"></div>
-    <div class="shade"></div>
-
-    <div class="content">
-      <div class="topRow">
-        <img class="topFlag" id="flagTop">
-        <div class="rankChangeTop" id="rankTextTop">#3 → #1</div>
-      </div>
-
-      <div class="avatar" id="avatarBox"></div>
-      <div class="name" id="playerName">Player</div>
-
-      <div class="delta">
-        <span class="arrow">▲</span>
-        <span id="deltaText">+2</span>
-      </div>
-
-      <div class="small" id="eloText">ELO 1589</div>
-    </div>
-  </div>
-</div>
-
 <script>
 const API="https://wololo-backend.onrender.com/ranking";
 const REFRESH_MS=12000;
-const SHOW_MS=10000;
+const SHOW_MS=8000;                 // duración visible de cada evento
+const GAP_MS=250;                   // pausa mínima entre eventos en cola
 const AVATAR_BASE="./avatars/";
 const TEST_MODE=new URLSearchParams(location.search).get("test")==="1";
+
+let testShown = false;
 
 /* 🇨🇦🇦🇷 etc → PNG (OBS-safe) */
 function countryFlag(cc){
@@ -183,14 +22,18 @@ function slugify(n){
   return n.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-");
 }
 
-let prev=new Map(), loaded=false, hideT;
-
-function show(){
-  const c=document.getElementById("card");
-  c.classList.add("show");
-  clearTimeout(hideT);
-  hideT=setTimeout(()=>c.classList.remove("show"),SHOW_MS);
+function toRankNum(v){
+  const n = Number(String(v).replace("#","").trim());
+  return Number.isFinite(n) ? n : NaN;
 }
+
+const card = document.getElementById("card");
+let prev = new Map();
+let loaded = false;
+
+// ✅ cola de eventos
+const queue = [];
+let playing = false;
 
 function avatar(name){
   const box=document.getElementById("avatarBox");
@@ -202,7 +45,7 @@ function avatar(name){
 
 function update(e){
   document.getElementById("playerName").textContent=e.name;
-  document.getElementById("deltaText").textContent=`+${e.old-e.rank}`;
+  document.getElementById("deltaText").textContent=`+${e.delta}`;
   document.getElementById("rankTextTop").textContent=`#${e.old} → #${e.rank}`;
   document.getElementById("eloText").textContent=`ELO ${e.elo}`;
 
@@ -220,24 +63,122 @@ function update(e){
   avatar(e.name);
 }
 
-async function tick(){
-  if(TEST_MODE){
-    update({name:"Hera",rank:1,old:3,elo:1589,country:"ca"});
-    show();return;
-  }
-  const r=await fetch(API,{cache:"no-store"}); if(!r.ok)return;
-  const d=await r.json();
-  if(!loaded){d.forEach(x=>prev.set(x.name,x.rank));loaded=true;return;}
-  for(const x of d){
-    if(prev.has(x.name)&&x.rank<prev.get(x.name)){
-      update({name:x.name,rank:x.rank,old:prev.get(x.name),elo:x.elo,country:x.country});
-      show();break;
-    }
-  }
-  prev.clear(); d.forEach(x=>prev.set(x.name,x.rank));
+function showNow(){
+  card.classList.add("show");
+}
+function hideNow(){
+  card.classList.remove("show");
 }
 
-tick(); setInterval(tick,REFRESH_MS);
+/**
+ * ✅ muestra un evento y cuando termina, pasa al siguiente en cola
+ */
+function playNext(){
+  if (playing) return;
+  const evt = queue.shift();
+  if (!evt) return;
+
+  playing = true;
+  update(evt);
+  showNow();
+
+  setTimeout(() => {
+    hideNow();
+    setTimeout(() => {
+      playing = false;
+      // si hay más, sigue
+      if (queue.length) playNext();
+    }, GAP_MS);
+  }, SHOW_MS);
+}
+
+/**
+ * ✅ agrega a cola evitando duplicados inmediatos
+ * (por seguridad, si un refresh trae dos veces el mismo jugador con mismo delta)
+ */
+function enqueue(evt){
+  const key = `${evt.name}|${evt.old}->${evt.rank}|+${evt.delta}`;
+  // evita duplicado si ya está al final de la cola
+  const last = queue.length ? queue[queue.length - 1] : null;
+  const lastKey = last ? `${last.name}|${last.old}->${last.rank}|+${last.delta}` : "";
+  if (key === lastKey) return;
+  queue.push(evt);
+}
+
+/**
+ * ✅ tick: detecta TODOS los rank-ups del refresh y los mete en cola
+ */
+async function tick(){
+  if(TEST_MODE){
+    if(testShown) return;
+    testShown = true;
+
+    // demo: 2 eventos en cola
+    enqueue({name:"Hera",rank:1,old:3,delta:2,elo:1589,country:"ca"});
+    enqueue({name:"Liereyy",rank:9,old:10,delta:1,elo:1536,country:"at"});
+    playNext();
+    return;
+  }
+
+  let d;
+  try{
+    const r=await fetch(API,{cache:"no-store"});
+    if(!r.ok) return;
+    d=await r.json();
+    if(!Array.isArray(d)) return;
+  }catch{
+    return;
+  }
+
+  // Inicializar mapa previo
+  if(!loaded){
+    d.forEach(x=>{
+      const rn = toRankNum(x.rank);
+      if(Number.isFinite(rn)) prev.set(x.name, rn);
+    });
+    loaded = true;
+    return;
+  }
+
+  // Detectar cambios (rank-up) del refresh actual
+  const events = [];
+  for(const x of d){
+    const newRank = toRankNum(x.rank);
+    const oldRank = prev.get(x.name);
+    if(!Number.isFinite(newRank) || !Number.isFinite(oldRank)) continue;
+
+    const delta = oldRank - newRank;
+
+    // ✅ SOLO rank-up
+    if(delta > 0){
+      events.push({
+        name: x.name,
+        rank: newRank,
+        old: oldRank,
+        delta,
+        elo: x.elo,
+        country: x.country
+      });
+    }
+  }
+
+  // Orden sugerido: primero el que más subió, luego por mejor rank final
+  events.sort((a,b) => (b.delta - a.delta) || (a.rank - b.rank));
+
+  // Meter a cola todos los eventos detectados
+  for (const evt of events) enqueue(evt);
+
+  // Disparar reproducción si no estaba mostrando nada
+  if(queue.length) playNext();
+
+  // Actualizar prev map al final
+  prev.clear();
+  d.forEach(x=>{
+    const rn = toRankNum(x.rank);
+    if(Number.isFinite(rn)) prev.set(x.name, rn);
+  });
+}
+
+tick();
+setInterval(tick, REFRESH_MS);
 </script>
-</body>
-</html>
