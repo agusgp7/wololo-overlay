@@ -281,8 +281,9 @@ async function tick(){
   if(TEST_MODE){
     if(testShown) return;
     testShown=true;
+    // ✅ ejemplo de "entra al top 10": 12 -> 10
+    enqueue({name:"PlayerIn",rank:10,old:12,delta:2,elo:1500,country:"ar"});
     enqueue({name:"Hera",rank:1,old:3,delta:2,elo:1589,country:"ca"});
-    enqueue({name:"Liereyy",rank:9,old:10,delta:1,elo:1536,country:"at"});
     playNext();
     return;
   }
@@ -306,16 +307,19 @@ async function tick(){
     return;
   }
 
-  // juntar todos los rank-ups del refresh
+  // ✅ juntar rank-ups SOLO si el NUEVO rank queda dentro del TOP 10
   const events=[];
   for(const x of d){
     const newRank=toRankNum(x.rank);
     const oldRank=prev.get(x.name);
     if(!Number.isFinite(newRank) || !Number.isFinite(oldRank)) continue;
 
-    const delta = oldRank - newRank;     // positivo = subió
+    // ✅ esta es la variante que pediste:
+    // muestra cambios si el jugador queda en el TOP 10 (incluye entradas desde fuera)
+    if(newRank > 10) continue;
 
-    if(delta>0){
+    const delta = oldRank - newRank; // positivo = subió
+    if(delta > 0){
       events.push({
         name: x.name,
         rank: newRank,
