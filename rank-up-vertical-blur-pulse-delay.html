@@ -1,0 +1,407 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Rank Up Vertical (Blur + Pulse)</title>
+
+  <style>
+    html,body{margin:0;background:transparent;font-family:Arial,Helvetica,sans-serif;}
+    .wrap{width:360px;height:520px;pointer-events:none;position:relative;}
+
+    .card{
+      position:absolute;inset:0;
+      display:flex;flex-direction:column;align-items:center;
+      gap:14px;
+      padding:18px 16px;border-radius:22px;
+      color:#fff;text-align:center;
+      border:1px solid rgba(255,255,255,.22);
+      box-shadow:0 18px 60px rgba(0,0,0,.45);
+
+      opacity:0;
+      visibility:hidden;
+      transform:translateY(18px) scale(.985);
+      filter:blur(2px);
+      transition:
+        opacity .25s ease,
+        transform .25s cubic-bezier(.2,.9,.2,1),
+        filter .25s ease,
+        visibility 0s linear .25s;
+      overflow:hidden;
+    }
+    .card.show{
+      opacity:1;
+      visibility:visible;
+      transition:
+        opacity .25s ease,
+        transform .25s cubic-bezier(.2,.9,.2,1),
+        filter .25s ease;
+      transform:translateY(0) scale(1);
+      filter:blur(0);
+      animation:pop .38s cubic-bezier(.2,.9,.2,1) both;
+    }
+    @keyframes pop{
+      0%{transform:translateY(18px) scale(.985);}
+      65%{transform:translateY(0) scale(1.015);}
+      100%{transform:translateY(0) scale(1);}
+    }
+
+    .bg{
+      position:absolute;inset:-18px;
+      background:url("./backgrounds/rankup-vertical.png") center/cover no-repeat;
+      background-color:rgba(35,165,84,.40);
+      filter:blur(14px) saturate(1.1) contrast(1.05);
+      transform:scale(1.06);
+      z-index:0;
+    }
+    .card.show .bg{
+      filter:blur(8px) saturate(1.15) contrast(1.08);
+      transform:scale(1.02);
+    }
+
+    .shade{
+      position:absolute;inset:0;
+      background:linear-gradient(to bottom, rgba(0,0,0,.18), rgba(0,0,0,.38));
+      z-index:1;
+    }
+
+    .content{
+      position:relative;z-index:2;
+      width:100%;
+      display:flex;flex-direction:column;align-items:center;
+      gap:14px;
+    }
+
+    .topRow{
+      display:flex;align-items:center;justify-content:center;gap:14px;margin-top:4px;
+    }
+    .topFlag{
+      width:54px;height:40px;border-radius:10px;
+      border:1px solid rgba(255,255,255,.28);
+      background:rgba(0,0,0,.18);
+      box-shadow:0 10px 28px rgba(0,0,0,.25);
+      display:none;
+    }
+    .rankChangeTop{
+      font-size:22px;font-weight:1000;
+      padding:8px 14px;border-radius:14px;
+      background:rgba(0,0,0,.16);
+      border:1px solid rgba(255,255,255,.18);
+      backdrop-filter:blur(4px);
+      text-shadow:0 4px 18px rgba(0,0,0,.35);
+    }
+
+    .avatar{
+      width:240px;height:240px;border-radius:30px;overflow:hidden;
+      background:rgba(0,0,0,.18);
+      border:1px solid rgba(255,255,255,.24);
+      display:grid;place-items:center;
+      box-shadow:0 14px 40px rgba(0,0,0,.30);
+    }
+    .avatar img{width:100%;height:100%;object-fit:cover;}
+    .initials{font-size:64px;font-weight:1000;}
+
+    .name{
+      font-size:40px;font-weight:1000;
+      max-width:330px;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+      text-shadow:0 4px 18px rgba(0,0,0,.35);
+    }
+
+    .delta{
+      font-size:54px;font-weight:1000;
+      padding:10px 18px;border-radius:18px;
+      background:rgba(0,0,0,.20);
+      border:1px solid rgba(120,255,180,.65);
+      display:inline-flex;align-items:center;gap:10px;
+      color:#7CFFB4;
+    }
+    .arrow{font-size:46px;color:#4CFF9A;}
+
+    .card.show .delta{ animation:pulse 900ms ease-out 3; }
+    @keyframes pulse{
+      0%{transform:scale(1);}
+      40%{transform:scale(1.07);filter:drop-shadow(0 0 16px rgba(76,255,154,.6));}
+      70%{transform:scale(.99);}
+      100%{transform:scale(1);}
+    }
+
+    .small{
+      font-size:14px;font-weight:900;opacity:.9;
+      text-transform:uppercase;
+      text-shadow:0 4px 18px rgba(0,0,0,.35);
+    }
+  </style>
+</head>
+
+<body>
+<div class="wrap">
+  <div class="card" id="card">
+    <div class="bg"></div>
+    <div class="shade"></div>
+
+    <div class="content">
+      <div class="topRow">
+        <img class="topFlag" id="flagTop" alt="">
+        <div class="rankChangeTop" id="rankTextTop">#3 → #1</div>
+      </div>
+
+      <div class="avatar" id="avatarBox"></div>
+      <div class="name" id="playerName">Player</div>
+
+      <div class="delta">
+        <span class="arrow">▲</span>
+        <span id="deltaText">+2</span>
+      </div>
+
+      <div class="small" id="eloText">ELO 1589</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/**
+ * Anti-spoiler:
+ * - delay=N segundos: retrasa la aparición del overlay N segundos
+ * - safe=1: si status indica "vs" (jugando), NO muestra el evento
+ */
+const params = new URLSearchParams(location.search);
+const API = "https://wololo-backend.onrender.com/ranking?limit=250";
+const REFRESH_MS = 12000;
+
+const SHOW_MS = 8000;
+const GAP_MS  = 250;
+
+const DELAY_SEC = Number(params.get("delay") || "0");   // ej: 180
+const DELAY_MS  = Math.max(0, Math.floor(DELAY_SEC * 1000));
+
+const SAFE_MODE = (params.get("safe") === "1");         // ej: ?safe=1
+const TOP_N = 10;
+
+const AVATAR_BASE = "./avatars/";
+const TEST_MODE = params.get("test") === "1";
+let testShown=false;
+
+/* Flags PNG (OBS-safe) */
+function countryFlag(cc){
+  if(!cc||cc.length!==2)return"";
+  const A="A".charCodeAt(0);
+  const up=cc.toUpperCase();
+  const c1=0x1F1E6+(up.charCodeAt(0)-A);
+  const c2=0x1F1E6+(up.charCodeAt(1)-A);
+  return `https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/72x72/${c1.toString(16)}-${c2.toString(16)}.png`;
+}
+
+function slugify(n){
+  return n.toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^a-z0-9]+/g,"-");
+}
+
+function toRankNum(v){
+  const n = Number(String(v).replace("#","").trim());
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function statusLooksInGame(status){
+  const s = String(status||"").toLowerCase();
+  // heurística simple: si hay "vs" suele ser match en curso / spectating
+  // podés expandirlo si querés (mapas, "spectat", etc.)
+  return s.includes(" vs ") || s.startsWith("vs ") || s.includes("spectat") || s.includes("watch");
+}
+
+const card=document.getElementById("card");
+let prev=new Map();
+let loaded=false;
+
+// cola visual (lo que se está mostrando ya)
+const playQueue=[];
+let playing=false;
+let hideTimer=null;
+
+// cola anti-spoiler (pendientes por delay)
+const pending=[]; // { dueAt, evt, key }
+
+function avatar(name){
+  const box=document.getElementById("avatarBox");
+  const img=new Image();
+  img.onload=()=>{box.innerHTML="";box.appendChild(img);}
+  img.onerror=()=>{box.innerHTML=`<div class="initials">${name.slice(0,2).toUpperCase()}</div>`;}
+  img.src=`${AVATAR_BASE}${slugify(name)}.png`;
+}
+
+function updateUI(e){
+  document.getElementById("playerName").textContent=e.name;
+  document.getElementById("deltaText").textContent=`+${e.delta}`;
+  document.getElementById("rankTextTop").textContent=`#${e.old} → #${e.rank}`;
+  document.getElementById("eloText").textContent=`ELO ${e.elo}`;
+
+  const f=document.getElementById("flagTop");
+  const url=countryFlag((e.country||"").toUpperCase());
+  if(url){
+    f.onload=()=>f.style.display="block";
+    f.onerror=()=>f.style.display="none";
+    f.src=url;
+  }else{
+    f.style.display="none";
+    f.removeAttribute("src");
+  }
+
+  avatar(e.name);
+}
+
+function showCard(){
+  clearTimeout(hideTimer);
+  card.classList.add("show");
+  hideTimer=setTimeout(()=>card.classList.remove("show"), SHOW_MS);
+}
+function hideCard(){
+  clearTimeout(hideTimer);
+  card.classList.remove("show");
+}
+
+// dedupe (para no spamear lo mismo)
+function keyOf(evt){
+  return `${evt.name}|${evt.old}->${evt.rank}|+${evt.delta}`;
+}
+
+function enqueuePlay(evt){
+  const k = keyOf(evt);
+  const last = playQueue.length ? keyOf(playQueue[playQueue.length-1]) : "";
+  if(k===last) return;
+  playQueue.push(evt);
+}
+
+function playNext(){
+  if(playing) return;
+  const evt = playQueue.shift();
+  if(!evt) return;
+
+  playing=true;
+  updateUI(evt);
+  showCard();
+
+  setTimeout(()=>{
+    hideCard();
+    setTimeout(()=>{
+      playing=false;
+      if(playQueue.length) playNext();
+    }, GAP_MS);
+  }, SHOW_MS);
+}
+
+// ---- Anti-spoiler pending handling ----
+function schedulePending(evt){
+  const k = keyOf(evt);
+
+  // no duplicar en pending si ya existe algo igual aún no disparado
+  if(pending.some(p => p.key === k)) return;
+
+  pending.push({
+    key: k,
+    evt,
+    dueAt: Date.now() + DELAY_MS
+  });
+}
+
+function flushPending(){
+  const now = Date.now();
+  // listos para salir (dueAt)
+  const ready = pending.filter(p => p.dueAt <= now);
+  if(!ready.length) return;
+
+  // sacarlos de pending
+  for(const r of ready){
+    const idx = pending.findIndex(p => p.key === r.key);
+    if(idx >= 0) pending.splice(idx,1);
+  }
+
+  // enviar a cola visual
+  for(const r of ready){
+    enqueuePlay(r.evt);
+  }
+  if(playQueue.length) playNext();
+}
+
+async function tick(){
+  // TEST (incluye entrada al top10 desde fuera)
+  if(TEST_MODE){
+    if(testShown) return;
+    testShown=true;
+
+    schedulePending({name:"Nicov",rank:10,old:12,delta:2,elo:1501,country:"ar",status:""});
+    schedulePending({name:"Liereyy",rank:8,old:9,delta:1,elo:1536,country:"at",status:""});
+
+    return;
+  }
+
+  let d;
+  try{
+    const r=await fetch(API,{cache:"no-store"});
+    if(!r.ok) return;
+    d=await r.json();
+    if(!Array.isArray(d)) return;
+  }catch{
+    return;
+  }
+
+  if(!loaded){
+    d.forEach(x=>{
+      const rn=toRankNum(x.rank);
+      if(Number.isFinite(rn)) prev.set(x.name, rn);
+    });
+    loaded=true;
+    return;
+  }
+
+  const events=[];
+  for(const x of d){
+    const newRank=toRankNum(x.rank);
+    const oldRank=prev.get(x.name);
+    if(!Number.isFinite(newRank) || !Number.isFinite(oldRank)) continue;
+
+    // ✅ Querés entradas al top10: basta con que el NUEVO rank sea <= 10
+    if(newRank > TOP_N) continue;
+
+    // ✅ modo seguro anti-spoiler: si el status sugiere match en curso, ignorar
+    if(SAFE_MODE && statusLooksInGame(x.status)) continue;
+
+    const delta = oldRank - newRank; // positivo = subió
+    if(delta > 0){
+      events.push({
+        name: x.name,
+        rank: newRank,
+        old: oldRank,
+        delta,
+        elo: x.elo,
+        country: x.country,
+        status: x.status
+      });
+    }
+  }
+
+  // más subida primero, luego mejor rank
+  events.sort((a,b)=>(b.delta-a.delta) || (a.rank-b.rank));
+
+  // en vez de mostrar ya, mandamos a pending con delay
+  for(const evt of events){
+    schedulePending(evt);
+  }
+
+  // actualizar prev
+  prev.clear();
+  d.forEach(x=>{
+    const rn=toRankNum(x.rank);
+    if(Number.isFinite(rn)) prev.set(x.name, rn);
+  });
+}
+
+// loop principal
+tick();
+setInterval(tick, REFRESH_MS);
+
+// flush pending cada 500ms (saca eventos cuando venció el delay)
+setInterval(flushPending, 500);
+</script>
+</body>
+</html>
