@@ -1,0 +1,230 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>RBW Bar Simple - Wonders</title>
+  <style>
+    html,body{margin:0;background:transparent;font-family:Arial,Helvetica,sans-serif;}
+
+    .bar{
+      width:1920px;height:90px;
+      display:flex;align-items:center;
+      padding:0 18px;
+      background:rgba(0,0,0,.75);
+      color:#fff;
+      border-top:1px solid rgba(255,255,255,.12);
+      border-bottom:1px solid rgba(255,255,255,.12);
+      overflow:hidden;
+      box-sizing:border-box;
+    }
+
+    /* Contenedor principal (cambia de modo: top / title / carousel) */
+    .items{
+      width:100%;
+      display:flex;
+      gap:18px;
+      align-items:center;
+      white-space:nowrap;
+      font-size:26px;
+      font-weight:900;
+      min-width:0;
+    }
+
+    /* Item compacto */
+    .item{display:flex;gap:10px;align-items:center;min-width:0;}
+    .rk{opacity:.99;}
+    .flag{width:38px;height:25px;border-radius:3px;flex:0 0 auto;object-fit:cover;}
+    .nm{max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .elo{opacity:.9;font-weight:800;}
+    .sep{opacity:.35;margin:0 6px;}
+
+    /* Pantalla título */
+    .titleScreen{
+      width:100%;
+      text-align:center;
+      font-size:34px;
+      font-weight:1000;
+      letter-spacing:.4px;
+      opacity:.98;
+    }
+
+    /* Carousel */
+    .carouselWrap{
+      width:100%;
+      overflow:hidden;
+      position:relative;
+    }
+    .carouselTrack{
+      display:inline-flex;
+      gap:26px;
+      align-items:center;
+      white-space:nowrap;
+      will-change:transform;
+      animation: marquee 18s linear infinite;
+    }
+
+    /* velocidad ajustable por CSS var */
+    .carouselWrap[data-speed="slow"] .carouselTrack{ animation-duration: 22s; }
+    .carouselWrap[data-speed="mid"]  .carouselTrack{ animation-duration: 18s; }
+    .carouselWrap[data-speed="fast"] .carouselTrack{ animation-duration: 14s; }
+
+    @keyframes marquee{
+      0%   { transform: translateX(100%); }
+      100% { transform: translateX(-100%); }
+    }
+
+    /* Mensajes */
+    .muted{opacity:.85;font-weight:900;}
+  </style>
+</head>
+<body>
+  <div class="bar">
+    <div class="items" id="items">Actualizando…</div>
+  </div>
+
+<script>
+// ⛳️ IMPORTANTE:
+// Para encontrar Wonders fuera del Top 10, pedimos más filas.
+// Si tu backend no soporta limit todavía, igual devuelve lo que tenga.
+const API = "https://wololo-backend.onrender.com/ranking?limit=250";
+
+const REFRESH_MS = 10000;
+
+// Duración de cada pantalla
+const PAGE_TOP_MS   = 15000; // 1–5
+const PAGE_TOP2_MS  = 15000; // 6–10
+const PAGE_TITLE_MS = 6000;  // "Posiciones de los Wonders"
+const PAGE_CAR_MS   = 20000; // carousel Wonders
+
+// Lista Wonders (case-insensitive)
+const WONDERS = ["ACCM","Lucho","Sebastian","Prisma09","Nicov","Capoch","Monoz"];
+
+let last = [];       // array ranking
+let page = 0;        // 0 top1-5, 1 top6-10, 2 title, 3 carousel
+let timer = null;
+
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));}
+
+// Flags PNG (OBS-safe)
+function ccToTwemojiPng(cc){
+  if(!cc || String(cc).length !== 2) return "";
+  const up = String(cc).toUpperCase();
+  const A = "A".charCodeAt(0);
+  const cp1 = 0x1F1E6 + (up.charCodeAt(0) - A);
+  const cp2 = 0x1F1E6 + (up.charCodeAt(1) - A);
+  return `https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/72x72/${cp1.toString(16)}-${cp2.toString(16)}.png`;
+}
+function flagImgHtml(cc){
+  const url = ccToTwemojiPng(cc);
+  if(!url) return "";
+  return `<img class="flag" src="${url}" alt="${esc(cc)}" />`;
+}
+
+function normalizeName(n){ return String(n||"").trim().toLowerCase(); }
+
+function renderTop(start){
+  const el = document.getElementById("items");
+  if(!last.length){ el.textContent="Sin datos"; return; }
+
+  const slice = last.slice(start, start + 5);
+
+  el.innerHTML = slice.map(x => `
+    <span class="item">
+      <span class="rk">#${esc(x.rank)}</span>
+      ${flagImgHtml(x.country)}
+      <span class="nm">${esc(x.name)}</span>
+      <span class="sep">•</span>
+      <span class="elo">${esc(x.elo)}</span>
+    </span>
+  `).join(`<span class="sep">|</span>`);
+}
+
+function renderTitle(){
+  const el = document.getElementById("items");
+  el.innerHTML = `<div class="titleScreen">Posiciones de los Wonders</div>`;
+}
+
+function renderWondersCarousel(){
+  const el = document.getElementById("items");
+  if(!last.length){ el.textContent="Sin datos"; return; }
+
+  // Filtrar Wonders presentes
+  const wanted = new Set(WONDERS.map(normalizeName));
+  const found = last
+    .filter(x => wanted.has(normalizeName(x.name)))
+    .map(x => ({
+      ...x,
+      rankNum: Number(String(x.rank).replace("#","").trim()) || 9999
+    }))
+    .sort((a,b) => a.rankNum - b.rankNum); // menor rank = mejor posición
+
+  if(!found.length){
+    el.innerHTML = `<div class="muted">No se encontraron jugadores de Wonders en el ranking recibido</div>`;
+    return;
+  }
+
+  // Para que el marquee no quede “vacío”, duplicamos el contenido
+  const row = found.map(x => `
+    <span class="item">
+      <span class="rk">#${esc(x.rank)}</span>
+      ${flagImgHtml(x.country)}
+      <span class="nm">${esc(x.name)}</span>
+      <span class="sep">•</span>
+      <span class="elo">${esc(x.elo)}</span>
+    </span>
+  `).join(`<span class="sep">|</span>`);
+
+  el.innerHTML = `
+    <div class="carouselWrap" data-speed="mid">
+      <div class="carouselTrack">
+        ${row}
+        <span class="sep">|</span>
+        ${row}
+      </div>
+    </div>
+  `;
+}
+
+function render(){
+  if(page === 0) return renderTop(0);
+  if(page === 1) return renderTop(5);
+  if(page === 2) return renderTitle();
+  return renderWondersCarousel();
+}
+
+function scheduleNext(){
+  clearTimeout(timer);
+
+  let ms = PAGE_TOP_MS;
+  if(page === 1) ms = PAGE_TOP2_MS;
+  else if(page === 2) ms = PAGE_TITLE_MS;
+  else if(page === 3) ms = PAGE_CAR_MS;
+
+  timer = setTimeout(() => {
+    page = (page + 1) % 4;
+    render();
+    scheduleNext();
+  }, ms);
+}
+
+async function tick(){
+  try{
+    const r = await fetch(API,{cache:"no-store"});
+    if(!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    last = Array.isArray(j) ? j : [];
+    render();
+  }catch(e){
+    last = [];
+    render();
+  }
+}
+
+// init
+tick();
+scheduleNext();
+setInterval(tick, REFRESH_MS);
+</script>
+</body>
+</html>
