@@ -46,7 +46,6 @@
       100%{transform:translateY(0) scale(1);}
     }
 
-    /* Fondo blur */
     .bg{
       position:absolute;inset:-18px;
       background:url("./backgrounds/rankup-vertical.png") center/cover no-repeat;
@@ -73,13 +72,8 @@
       gap:14px;
     }
 
-    /* Top: bandera + cambio de rank */
     .topRow{
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      gap:14px;
-      margin-top:4px;
+      display:flex;align-items:center;justify-content:center;gap:14px;margin-top:4px;
     }
     .topFlag{
       width:54px;height:40px;border-radius:10px;
@@ -89,17 +83,14 @@
       display:none;
     }
     .rankChangeTop{
-      font-size:22px;
-      font-weight:1000;
-      padding:8px 14px;
-      border-radius:14px;
+      font-size:22px;font-weight:1000;
+      padding:8px 14px;border-radius:14px;
       background:rgba(0,0,0,.16);
       border:1px solid rgba(255,255,255,.18);
       backdrop-filter:blur(4px);
       text-shadow:0 4px 18px rgba(0,0,0,.35);
     }
 
-    /* Avatar */
     .avatar{
       width:240px;height:240px;border-radius:30px;overflow:hidden;
       background:rgba(0,0,0,.18);
@@ -110,7 +101,6 @@
     .avatar img{width:100%;height:100%;object-fit:cover;}
     .initials{font-size:64px;font-weight:1000;}
 
-    /* Nombre */
     .name{
       font-size:40px;font-weight:1000;
       max-width:330px;
@@ -118,7 +108,6 @@
       text-shadow:0 4px 18px rgba(0,0,0,.35);
     }
 
-    /* ▲ +X con 3 pulsos */
     .delta{
       font-size:54px;font-weight:1000;
       padding:10px 18px;border-radius:18px;
@@ -129,9 +118,7 @@
     }
     .arrow{font-size:46px;color:#4CFF9A;}
 
-    .card.show .delta{
-      animation:pulse 900ms ease-out 3;
-    }
+    .card.show .delta{ animation:pulse 900ms ease-out 3; }
     @keyframes pulse{
       0%{transform:scale(1);}
       40%{transform:scale(1.07);filter:drop-shadow(0 0 16px rgba(76,255,154,.6));}
@@ -156,7 +143,7 @@
     <div class="content">
       <div class="topRow">
         <img class="topFlag" id="flagTop" alt="">
-        <div class="rankChangeTop" id="rankTextTop">#3 → #1</div>
+        <div class="rankChangeTop" id="rankTextTop">#22 → #20</div>
       </div>
 
       <div class="avatar" id="avatarBox"></div>
@@ -173,13 +160,27 @@
 </div>
 
 <script>
-const API="https://wololo-backend.onrender.com/ranking";
-const REFRESH_MS=12000;
-const SHOW_MS=8000;                 // cada evento dura 8s
-const GAP_MS=250;                   // pausa entre eventos (cola)
-const AVATAR_BASE="./avatars/";
-const TEST_MODE=new URLSearchParams(location.search).get("test")==="1";
+/**
+ * Cambios en TOP 25 + anti-spoiler:
+ * - delay por defecto = 120s
+ * - podés override con ?delay=180, etc.
+ */
+const params = new URLSearchParams(location.search);
+const API = "https://wololo-backend.onrender.com/ranking?limit=250";
+const REFRESH_MS = 12000;
 
+const SHOW_MS = 8000;
+const GAP_MS  = 250;
+
+const DEFAULT_DELAY_SEC = 120; // ✅ 2 minutos por defecto
+const DELAY_SEC = Number(params.get("delay") || String(DEFAULT_DELAY_SEC));
+const DELAY_MS  = Math.max(0, Math.floor(DELAY_SEC * 1000));
+
+const SAFE_MODE = (params.get("safe") === "1"); // opcional
+const TOP_N = 25; // ✅ AHORA TOP 25
+
+const AVATAR_BASE = "./avatars/";
+const TEST_MODE = params.get("test") === "1";
 let testShown=false;
 
 /* Flags PNG (OBS-safe) */
@@ -203,14 +204,22 @@ function toRankNum(v){
   return Number.isFinite(n) ? n : NaN;
 }
 
+function statusLooksInGame(status){
+  const s = String(status||"").toLowerCase();
+  return s.includes(" vs ") || s.startsWith("vs ") || s.includes("spectat") || s.includes("watch");
+}
+
 const card=document.getElementById("card");
 let prev=new Map();
 let loaded=false;
 
-// ✅ cola
-const queue=[];
+// cola visual
+const playQueue=[];
 let playing=false;
 let hideTimer=null;
+
+// cola anti-spoiler por delay
+const pending=[]; // { dueAt, evt, key }
 
 function avatar(name){
   const box=document.getElementById("avatarBox");
@@ -250,17 +259,20 @@ function hideCard(){
   card.classList.remove("show");
 }
 
-function enqueue(evt){
-  const key = `${evt.name}|${evt.old}->${evt.rank}|+${evt.delta}`;
-  const last = queue.length ? queue[queue.length-1] : null;
-  const lastKey = last ? `${last.name}|${last.old}->${last.rank}|+${last.delta}` : "";
-  if(key===lastKey) return;
-  queue.push(evt);
+function keyOf(evt){
+  return `${evt.name}|${evt.old}->${evt.rank}|+${evt.delta}`;
+}
+
+function enqueuePlay(evt){
+  const k = keyOf(evt);
+  const last = playQueue.length ? keyOf(playQueue[playQueue.length-1]) : "";
+  if(k===last) return;
+  playQueue.push(evt);
 }
 
 function playNext(){
   if(playing) return;
-  const evt = queue.shift();
+  const evt = playQueue.shift();
   if(!evt) return;
 
   playing=true;
@@ -271,20 +283,49 @@ function playNext(){
     hideCard();
     setTimeout(()=>{
       playing=false;
-      if(queue.length) playNext();
+      if(playQueue.length) playNext();
     }, GAP_MS);
   }, SHOW_MS);
 }
 
+// ---- Anti-spoiler pending ----
+function schedulePending(evt){
+  const k = keyOf(evt);
+  if(pending.some(p => p.key === k)) return;
+
+  pending.push({
+    key: k,
+    evt,
+    dueAt: Date.now() + DELAY_MS
+  });
+}
+
+function flushPending(){
+  const now = Date.now();
+  const ready = pending.filter(p => p.dueAt <= now);
+  if(!ready.length) return;
+
+  // sacar del pending
+  for(const r of ready){
+    const idx = pending.findIndex(p => p.key === r.key);
+    if(idx >= 0) pending.splice(idx,1);
+  }
+
+  // pasar a cola visual
+  for(const r of ready){
+    enqueuePlay(r.evt);
+  }
+  if(playQueue.length) playNext();
+}
+
 async function tick(){
-  // TEST: 2 eventos en cola (solo 1 vez)
+  // TEST: incluye cambios dentro del top25 (22->20)
   if(TEST_MODE){
     if(testShown) return;
     testShown=true;
-    // ✅ ejemplo de "entra al top 10": 12 -> 10
-    enqueue({name:"PlayerIn",rank:10,old:12,delta:2,elo:1500,country:"ar"});
-    enqueue({name:"Hera",rank:1,old:3,delta:2,elo:1589,country:"ca"});
-    playNext();
+
+    schedulePending({name:"TestPlayer",rank:20,old:22,delta:2,elo:1501,country:"ar",status:""});
+    schedulePending({name:"OtherPlayer",rank:4,old:5,delta:1,elo:1536,country:"at",status:""});
     return;
   }
 
@@ -299,6 +340,7 @@ async function tick(){
   }
 
   if(!loaded){
+    // guardamos ranks prev de TODO lo que viene (hasta 250)
     d.forEach(x=>{
       const rn=toRankNum(x.rank);
       if(Number.isFinite(rn)) prev.set(x.name, rn);
@@ -307,16 +349,19 @@ async function tick(){
     return;
   }
 
-  // ✅ juntar rank-ups SOLO si el NUEVO rank queda dentro del TOP 10
   const events=[];
   for(const x of d){
     const newRank=toRankNum(x.rank);
     const oldRank=prev.get(x.name);
+
+    // si no lo teníamos antes, no disparamos (evita falsos positivos al inicio)
     if(!Number.isFinite(newRank) || !Number.isFinite(oldRank)) continue;
 
-    // ✅ esta es la variante que pediste:
-    // muestra cambios si el jugador queda en el TOP 10 (incluye entradas desde fuera)
-    if(newRank > 10) continue;
+    // ✅ SOLO si el nuevo rank está dentro del TOP 25
+    if(newRank > TOP_N) continue;
+
+    // opcional: safe=1
+    if(SAFE_MODE && statusLooksInGame(x.status)) continue;
 
     const delta = oldRank - newRank; // positivo = subió
     if(delta > 0){
@@ -326,18 +371,21 @@ async function tick(){
         old: oldRank,
         delta,
         elo: x.elo,
-        country: x.country
+        country: x.country,
+        status: x.status
       });
     }
   }
 
-  // ordenar: más subida primero, luego mejor rank final
+  // ordenar: más subida primero, luego mejor rank
   events.sort((a,b)=>(b.delta-a.delta) || (a.rank-b.rank));
 
-  for(const evt of events) enqueue(evt);
-  if(queue.length) playNext();
+  // delay anti-spoiler
+  for(const evt of events){
+    schedulePending(evt);
+  }
 
-  // actualizar mapa prev
+  // actualizar prev
   prev.clear();
   d.forEach(x=>{
     const rn=toRankNum(x.rank);
@@ -345,8 +393,10 @@ async function tick(){
   });
 }
 
+// loop
 tick();
 setInterval(tick, REFRESH_MS);
+setInterval(flushPending, 500);
 </script>
 </body>
 </html>
