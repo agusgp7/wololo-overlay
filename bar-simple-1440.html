@@ -1,0 +1,181 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>RBW Bar Simple - Top 25 (1440p)</title>
+  <style>
+    html,body{
+      margin:0;
+      background:transparent;
+      font-family:Arial,Helvetica,sans-serif;
+    }
+
+    /* ===== BARRA 1440p ===== */
+    .bar{
+      width:2560px;              /* 🔥 nativo 1440p */
+      height:120px;              /* más alto */
+      display:flex;
+      align-items:center;
+      padding:0 42px;            /* más aire lateral */
+      background:rgba(0,0,0,.75);
+      color:#fff;
+      border-top:1px solid rgba(255,255,255,.14);
+      border-bottom:1px solid rgba(255,255,255,.14);
+      overflow:hidden;
+      box-sizing:border-box;
+    }
+
+    .items{
+      width:100%;
+      display:flex;
+      gap:30px;                  /* más separación */
+      align-items:center;
+      white-space:nowrap;
+      font-size:30px;            /* base más grande */
+      font-weight:900;
+      min-width:0;
+    }
+
+    .item{
+      display:flex;
+      gap:14px;
+      align-items:center;
+      min-width:0;
+      flex:1;                    /* cada player ocupa 1/5 */
+    }
+
+    .rk{opacity:.99;}
+
+    .flag{
+      width:48px;                /* bandera más grande */
+      height:32px;
+      border-radius:4px;
+      flex:0 0 auto;
+      object-fit:cover;
+    }
+
+    /* 🔑 nombre adaptable sin "..." */
+    .nm{
+      max-width:none;
+      overflow:hidden;
+      white-space:nowrap;
+      text-overflow:clip;
+      font-size:clamp(22px, 1.2vw, 32px);
+    }
+
+    .elo{
+      opacity:.9;
+      font-weight:800;
+      flex:0 0 auto;
+    }
+
+    .sep{
+      opacity:.35;
+      margin:0 8px;
+      flex:0 0 auto;
+    }
+
+    .muted{
+      opacity:.85;
+      font-weight:900;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="bar">
+    <div class="items" id="items">Actualizando…</div>
+  </div>
+
+<script>
+const API = "https://wololo-backend.onrender.com/ranking?limit=250";
+const REFRESH_MS = 10000;
+const PAGE_MS = 15000;
+
+let last = [];
+let page = 0;
+let timer = null;
+
+function esc(s){
+  return String(s??"").replace(/[&<>"']/g,m=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;",
+    '"':"&quot;","'":"&#39;"
+  }[m]));
+}
+
+function ccToTwemojiPng(cc){
+  if(!cc || String(cc).length !== 2) return "";
+  const up = String(cc).toUpperCase();
+  const A = "A".charCodeAt(0);
+  const cp1 = 0x1F1E6 + (up.charCodeAt(0) - A);
+  const cp2 = 0x1F1E6 + (up.charCodeAt(1) - A);
+  return `https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/72x72/${cp1.toString(16)}-${cp2.toString(16)}.png`;
+}
+
+function flagImgHtml(cc){
+  const url = ccToTwemojiPng(cc);
+  if(!url) return "";
+  return `<img class="flag" src="${url}" alt="${esc(cc)}" />`;
+}
+
+function renderTop(start){
+  const el = document.getElementById("items");
+
+  if(!last.length){
+    el.innerHTML = `<span class="muted">Sin datos</span>`;
+    return;
+  }
+
+  if(last.length < 25){
+    el.innerHTML = `<span class="muted">Cargando ranking… (${last.length}/25)</span>`;
+    return;
+  }
+
+  const slice = last.slice(start, start + 5);
+
+  el.innerHTML = slice.map(x => `
+    <span class="item">
+      <span class="rk">#${esc(x.rank)}</span>
+      ${flagImgHtml(x.country)}
+      <span class="nm">${esc(x.name)}</span>
+      <span class="sep">•</span>
+      <span class="elo">${esc(x.elo)}</span>
+    </span>
+  `).join(`<span class="sep">|</span>`);
+}
+
+function render(){
+  renderTop(page * 5);
+}
+
+function scheduleNext(){
+  clearTimeout(timer);
+  timer = setTimeout(() => {
+    page = (page + 1) % 5;
+    render();
+    scheduleNext();
+  }, PAGE_MS);
+}
+
+async function tick(){
+  try{
+    const r = await fetch(API,{cache:"no-store"});
+    if(!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    last = Array.isArray(j) ? j : [];
+    render();
+  }catch(e){
+    if(!last.length){
+      last = [];
+      render();
+    }
+  }
+}
+
+tick();
+scheduleNext();
+setInterval(tick, REFRESH_MS);
+</script>
+</body>
+</html>
