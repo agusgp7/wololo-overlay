@@ -51,7 +51,7 @@ const API = "https://wololo-backend.onrender.com/ranking?limit=250";
 const REFRESH_MS = 10000;
 
 // ✅ Duración de cada pantalla (ajustá a gusto)
-const PAGE_MS = 1000; // 15s cada bloque: 1–5, 6–10, 11–15, 16–20, 21–25
+const PAGE_MS = 15000; // 15s cada bloque: 1–5, 6–10, 11–15, 16–20, 21–25
 
 let last = [];     // ranking completo que trae el backend
 let page = 0;      // 0..4
@@ -139,6 +139,7 @@ setInterval(tick, REFRESH_MS);
 </script>
 </body>
 </html>
+
 
 
 
