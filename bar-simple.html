@@ -10,7 +10,7 @@
     .bar{
       width:1920px;height:90px;
       display:flex;align-items:center;
-      padding:0 15px;
+      padding:0 12px;
       background:rgba(0,0,0,.75);
       color:#fff;
       border-top:1px solid rgba(255,255,255,.12);
@@ -51,7 +51,7 @@ const API = "https://wololo-backend.onrender.com/ranking?limit=250";
 const REFRESH_MS = 10000;
 
 // ✅ Duración de cada pantalla (ajustá a gusto)
-const PAGE_MS = 2000; // 15s cada bloque: 1–5, 6–10, 11–15, 16–20, 21–25
+const PAGE_MS = 1000; // 15s cada bloque: 1–5, 6–10, 11–15, 16–20, 21–25
 
 let last = [];     // ranking completo que trae el backend
 let page = 0;      // 0..4
@@ -139,5 +139,6 @@ setInterval(tick, REFRESH_MS);
 </script>
 </body>
 </html>
+
 
 
