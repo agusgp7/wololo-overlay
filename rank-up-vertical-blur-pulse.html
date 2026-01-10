@@ -161,9 +161,7 @@
 
 <script>
 /**
- * Cambios en TOP 25 + anti-spoiler:
- * - delay por defecto = 120s
- * - podés override con ?delay=180, etc.
+ * TOP 25 + delay default 120s
  */
 const params = new URLSearchParams(location.search);
 const API = "https://wololo-backend.onrender.com/ranking?limit=250";
@@ -172,18 +170,18 @@ const REFRESH_MS = 12000;
 const SHOW_MS = 8000;
 const GAP_MS  = 250;
 
-const DEFAULT_DELAY_SEC = 120; // ✅ 2 minutos por defecto
+const DEFAULT_DELAY_SEC = 120;
 const DELAY_SEC = Number(params.get("delay") || String(DEFAULT_DELAY_SEC));
 const DELAY_MS  = Math.max(0, Math.floor(DELAY_SEC * 1000));
 
-const SAFE_MODE = (params.get("safe") === "1"); // opcional
-const TOP_N = 25; // ✅ AHORA TOP 25
+const SAFE_MODE = (params.get("safe") === "1");
+const TOP_N = 25;
 
 const AVATAR_BASE = "./avatars/";
 const TEST_MODE = params.get("test") === "1";
 let testShown=false;
 
-/* Flags PNG (OBS-safe) */
+/* Flags PNG */
 function countryFlag(cc){
   if(!cc||cc.length!==2)return"";
   const A="A".charCodeAt(0);
@@ -194,7 +192,7 @@ function countryFlag(cc){
 }
 
 function slugify(n){
-  return n.toLowerCase()
+  return String(n||"").toLowerCase()
     .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
     .replace(/[^a-z0-9]+/g,"-");
 }
@@ -213,20 +211,49 @@ const card=document.getElementById("card");
 let prev=new Map();
 let loaded=false;
 
-// cola visual
 const playQueue=[];
 let playing=false;
 let hideTimer=null;
 
-// cola anti-spoiler por delay
 const pending=[]; // { dueAt, evt, key }
 
+/* ✅ FIX AVATAR: limpia inmediato + timeout */
+function showInitials(box, name){
+  const nm = String(name||"");
+  box.innerHTML = `<div class="initials">${nm.slice(0,2).toUpperCase()}</div>`;
+}
 function avatar(name){
   const box=document.getElementById("avatarBox");
+
+  // 1) limpiar inmediatamente (evita "foto fantasma" del anterior)
+  box.innerHTML = "";
+  showInitials(box, name); // muestra algo al toque mientras carga
+
   const img=new Image();
-  img.onload=()=>{box.innerHTML="";box.appendChild(img);}
-  img.onerror=()=>{box.innerHTML=`<div class="initials">${name.slice(0,2).toUpperCase()}</div>`;}
-  img.src=`${AVATAR_BASE}${slugify(name)}.png`;
+  img.decoding = "async";
+  img.alt = name;
+
+  let settled = false;
+  const settleToInitials = () => {
+    if(settled) return;
+    settled = true;
+    showInitials(box, name);
+  };
+  const settleToImg = () => {
+    if(settled) return;
+    settled = true;
+    box.innerHTML = "";
+    box.appendChild(img);
+  };
+
+  // 2) timeout hard (por si no dispara onerror)
+  const t = setTimeout(settleToInitials, 1200);
+
+  img.onload = () => { clearTimeout(t); settleToImg(); };
+  img.onerror = () => { clearTimeout(t); settleToInitials(); };
+
+  // 3) set src al final
+  img.src = `${AVATAR_BASE}${slugify(name)}.png`;
 }
 
 function updateUI(e){
@@ -288,16 +315,10 @@ function playNext(){
   }, SHOW_MS);
 }
 
-// ---- Anti-spoiler pending ----
 function schedulePending(evt){
   const k = keyOf(evt);
   if(pending.some(p => p.key === k)) return;
-
-  pending.push({
-    key: k,
-    evt,
-    dueAt: Date.now() + DELAY_MS
-  });
+  pending.push({ key: k, evt, dueAt: Date.now() + DELAY_MS });
 }
 
 function flushPending(){
@@ -305,27 +326,23 @@ function flushPending(){
   const ready = pending.filter(p => p.dueAt <= now);
   if(!ready.length) return;
 
-  // sacar del pending
   for(const r of ready){
     const idx = pending.findIndex(p => p.key === r.key);
     if(idx >= 0) pending.splice(idx,1);
   }
 
-  // pasar a cola visual
-  for(const r of ready){
-    enqueuePlay(r.evt);
-  }
+  for(const r of ready) enqueuePlay(r.evt);
   if(playQueue.length) playNext();
 }
 
 async function tick(){
-  // TEST: incluye cambios dentro del top25 (22->20)
   if(TEST_MODE){
     if(testShown) return;
     testShown=true;
-
-    schedulePending({name:"TestPlayer",rank:20,old:22,delta:2,elo:1501,country:"ar",status:""});
-    schedulePending({name:"OtherPlayer",rank:4,old:5,delta:1,elo:1536,country:"at",status:""});
+    // uno sin avatar (debería mostrar iniciales)
+    schedulePending({name:"Lewis",rank:6,old:8,delta:2,elo:1600,country:"gb",status:""});
+    // uno con avatar (si existe en tu repo)
+    schedulePending({name:"Sebastian",rank:20,old:22,delta:2,elo:1501,country:"pe",status:""});
     return;
   }
 
@@ -340,7 +357,6 @@ async function tick(){
   }
 
   if(!loaded){
-    // guardamos ranks prev de TODO lo que viene (hasta 250)
     d.forEach(x=>{
       const rn=toRankNum(x.rank);
       if(Number.isFinite(rn)) prev.set(x.name, rn);
@@ -353,17 +369,11 @@ async function tick(){
   for(const x of d){
     const newRank=toRankNum(x.rank);
     const oldRank=prev.get(x.name);
-
-    // si no lo teníamos antes, no disparamos (evita falsos positivos al inicio)
     if(!Number.isFinite(newRank) || !Number.isFinite(oldRank)) continue;
-
-    // ✅ SOLO si el nuevo rank está dentro del TOP 25
     if(newRank > TOP_N) continue;
-
-    // opcional: safe=1
     if(SAFE_MODE && statusLooksInGame(x.status)) continue;
 
-    const delta = oldRank - newRank; // positivo = subió
+    const delta = oldRank - newRank;
     if(delta > 0){
       events.push({
         name: x.name,
@@ -377,15 +387,9 @@ async function tick(){
     }
   }
 
-  // ordenar: más subida primero, luego mejor rank
   events.sort((a,b)=>(b.delta-a.delta) || (a.rank-b.rank));
+  for(const evt of events) schedulePending(evt);
 
-  // delay anti-spoiler
-  for(const evt of events){
-    schedulePending(evt);
-  }
-
-  // actualizar prev
   prev.clear();
   d.forEach(x=>{
     const rn=toRankNum(x.rank);
@@ -393,7 +397,6 @@ async function tick(){
   });
 }
 
-// loop
 tick();
 setInterval(tick, REFRESH_MS);
 setInterval(flushPending, 500);
