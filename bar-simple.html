@@ -57,34 +57,7 @@ let last = [];     // ranking completo que trae el backend
 let page = 0;      // 0..4
 let timer = null;
 
-/* =========================
-   ✅ Overrides pedidos
-   ========================= */
-const NAME_OVERRIDES = {
-  "Prisma09": "Prisma",
-  "Dragonstar": "Dragon",
-  "FreakinAndy": "FreakinA",
-  "Sora": "Sora K"
-};
-
-const COUNTRY_OVERRIDES = {
-  "Sora": "tw"
-  "Sora K": "tw"
-};
-
-function displayName(name){
-  return NAME_OVERRIDES[name] || name;
-}
-function displayCountry(playerName, country){
-  return COUNTRY_OVERRIDES[playerName] || country;
-}
-/* ========================= */
-
-function esc(s){
-  return String(s??"").replace(/[&<>"']/g,m=>({
-    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-  }[m]));
-}
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));}
 
 // Flags PNG (OBS-safe)
 function ccToTwemojiPng(cc){
@@ -117,19 +90,15 @@ function renderTop(start){
   const slice = last.slice(start, start + 5);
 
   // ✅ ESTÁTICO (sin animación)
-  el.innerHTML = slice.map(x => {
-    const nm = displayName(x.name);
-    const cc = displayCountry(x.name, x.country);
-    return `
-      <span class="item">
-        <span class="rk">#${esc(x.rank)}</span>
-        ${flagImgHtml(cc)}
-        <span class="nm">${esc(nm)}</span>
-        <span class="sep">•</span>
-        <span class="elo">${esc(x.elo)}</span>
-      </span>
-    `;
-  }).join(`<span class="sep">|</span>`);
+  el.innerHTML = slice.map(x => `
+    <span class="item">
+      <span class="rk">#${esc(x.rank)}</span>
+      ${flagImgHtml(x.country)}
+      <span class="nm">${esc(x.name)}</span>
+      <span class="sep">•</span>
+      <span class="elo">${esc(x.elo)}</span>
+    </span>
+  `).join(`<span class="sep">|</span>`);
 }
 
 function render(){
@@ -170,3 +139,4 @@ setInterval(tick, REFRESH_MS);
 </script>
 </body>
 </html>
+
