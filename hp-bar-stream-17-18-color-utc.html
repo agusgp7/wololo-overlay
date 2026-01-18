@@ -136,4 +136,100 @@
 
     const elFill = document.getElementById("fill");
     const elHpText = document.getElementById("hpText");
-    const elCountdown = document.getElementById("count
+    const elCountdown = document.getElementById("countdown");
+    const elBar = document.getElementById("bar");
+
+    function pad(n){ return String(n).padStart(2,"0"); }
+    function clamp01(x){ return Math.max(0, Math.min(1, x)); }
+
+    function formatLeft(msLeft) {
+      const totalSec = Math.max(0, Math.floor(msLeft / 1000));
+      const hh = Math.floor(totalSec / 3600);
+      const mm = Math.floor((totalSec % 3600) / 60);
+      const ss = totalSec % 60;
+      return `${pad(hh)}:${pad(mm)}:${pad(ss)} left`;
+    }
+
+    function lerp(a, b, t){ return a + (b - a) * t; }
+    function lerpRGB(c1, c2, t){
+      return {
+        r: Math.round(lerp(c1.r, c2.r, t)),
+        g: Math.round(lerp(c1.g, c2.g, t)),
+        b: Math.round(lerp(c1.b, c2.b, t)),
+        a: lerp(c1.a, c2.a, t)
+      };
+    }
+    function rgba({r,g,b,a}){ return `rgba(${r},${g},${b},${a})`; }
+
+    const GREEN  = { r: 80,  g: 255, b: 140, a: 0.95 };
+    const YELLOW = { r: 255, g: 220, b: 90,  a: 0.95 };
+    const RED    = { r: 255, g: 80,  b: 80,  a: 0.95 };
+
+    function applyHpColors(hp01){
+      const t = 1 - hp01; // 0 full -> 1 empty
+      let cMid;
+      if (t <= 0.5) cMid = lerpRGB(GREEN, YELLOW, t / 0.5);
+      else cMid = lerpRGB(YELLOW, RED, (t - 0.5) / 0.5);
+
+      const c1 = lerpRGB(cMid, GREEN, 0.35);
+      const c2 = cMid;
+      const c3 = lerpRGB(cMid, RED, 0.35);
+
+      const glowA = 0.22 + (1 - hp01) * 0.25;
+      const glow = `0 0 18px rgba(${cMid.r},${cMid.g},${cMid.b},${glowA})`;
+
+      document.documentElement.style.setProperty("--c1", rgba(c1));
+      document.documentElement.style.setProperty("--c2", rgba(c2));
+      document.documentElement.style.setProperty("--c3", rgba(c3));
+      document.documentElement.style.setProperty("--glow", glow);
+    }
+
+    function render(hp01, msLeft) {
+      elFill.style.transform = `scaleX(${hp01})`;
+      elHpText.textContent = `${Math.round(hp01 * 100)}%`;
+      elCountdown.textContent = formatLeft(msLeft);
+
+      applyHpColors(hp01);
+
+      if (hp01 <= 0.001) elBar.classList.add("dead");
+      else elBar.classList.remove("dead");
+    }
+
+    function update() {
+      if (TEST) {
+        const t = (Date.now() / 1000) % TEST_TOTAL_SECONDS;
+        const progress = t / TEST_TOTAL_SECONDS;
+        const hp = clamp01(1 - progress);
+        const msLeft = Math.max(0, (1 - progress) * TEST_TOTAL_SECONDS * 1000);
+        render(hp, msLeft);
+        requestAnimationFrame(update);
+        return;
+      }
+
+      const nowMs = Date.now();
+
+      if (nowMs <= STREAM_START_MS) {
+        render(1, STREAM_END_MS - nowMs);
+        requestAnimationFrame(update);
+        return;
+      }
+
+      if (nowMs >= STREAM_END_MS) {
+        render(0, 0);
+        requestAnimationFrame(update);
+        return;
+      }
+
+      const total = STREAM_END_MS - STREAM_START_MS;
+      const elapsed = nowMs - STREAM_START_MS;
+      const hp = clamp01(1 - (elapsed / total));
+      const msLeft = STREAM_END_MS - nowMs;
+
+      render(hp, msLeft);
+      requestAnimationFrame(update);
+    }
+
+    update();
+  </script>
+</body>
+</html>
