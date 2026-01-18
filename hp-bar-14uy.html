@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>HP Bar to 14:00 UY</title>
+  <style>
+    :root{
+      /* ====== CONFIG RAPIDA ====== */
+      --w: 900px;         /* ancho de la barra */
+      --h: 26px;          /* alto de la barra */
+      --border: 2px;
+      --radius: 999px;
+      --bg: rgba(0,0,0,0.35);
+      --frame: rgba(255,255,255,0.25);
+      --shadow: 0 10px 30px rgba(0,0,0,0.35);
+      --glow: 0 0 18px rgba(255, 90, 90, 0.35);
+      --font: 14px;
+    }
+
+    /* Fondo transparente para OBS */
+    html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+
+    /* Contenedor: ponelo donde quieras en OBS moviendo el Browser Source */
+    .wrap{
+      width: var(--w);
+      padding: 10px 12px;
+      background: transparent;
+      filter: drop-shadow(var(--shadow));
+    }
+
+    .row{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom: 8px;
+      color: rgba(255,255,255,0.9);
+      font-size: var(--font);
+      letter-spacing: 0.3px;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    }
+
+    .label{
+      display:flex;
+      gap:10px;
+      align-items:baseline;
+      white-space: nowrap;
+    }
+    .label b{ font-weight: 800; }
+
+    .bar{
+      width: var(--w);
+      height: var(--h);
+      background: var(--bg);
+      border: var(--border) solid var(--frame);
+      border-radius: var(--radius);
+      overflow: hidden;
+      position: relative;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.25);
+    }
+
+    /* “Vida” */
+    .fill{
+      height: 100%;
+      width: 100%;
+      border-radius: var(--radius);
+      transform-origin: left center;
+      transform: scaleX(1);
+      transition: transform 250ms linear;
+      box-shadow: var(--glow);
+      /* Gradient tipo HP */
+      background: linear-gradient(90deg,
+        rgba(80, 255, 140, 0.95) 0%,
+        rgba(255, 220, 90, 0.95) 55%,
+        rgba(255, 80, 80, 0.95) 100%
+      );
+    }
+
+    /* Brillito animado */
+    .shine{
+      position:absolute;
+      top:0; left:-30%;
+      height:100%;
+      width:30%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+      transform: skewX(-20deg);
+      animation: shine 2.6s linear infinite;
+      pointer-events:none;
+      opacity: 0.7;
+      mix-blend-mode: screen;
+    }
+    @keyframes shine{
+      0%{ left:-35%; }
+      100%{ left:105%; }
+    }
+
+    /* Cuando llega a 0: parpadeo suave (opcional) */
+    .dead .fill{
+      box-shadow: 0 0 18px rgba(255, 80, 80, 0.55);
+      animation: lowhp 1.2s ease-in-out infinite;
+    }
+    @keyframes lowhp{
+      0%,100%{ opacity: 0.45; }
+      50%{ opacity: 0.9; }
+    }
+
+    /* Pequeños textos */
+    .muted{ opacity: 0.8; }
+    .mono{ font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="row">
+      <div class="label">
+        <b>HP</b>
+        <span class="muted mono" id="hpText">100%</span>
+      </div>
+      <div class="muted mono" id="clock">--:--:--</div>
+    </div>
+
+    <div class="bar" id="bar">
+      <div class="fill" id="fill"></div>
+      <div class="shine"></div>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * ===== CONFIG =====
+     * Uruguay timezone: America/Montevideo
+     * Por defecto: 100% a las 00:00 y 0% a las 14:00 (mismo día UY)
+     */
+    const TZ = "America/Montevideo";
+    const START_HOUR = 0;     // 00:00
+    const END_HOUR = 14;      // 14:00 => 0 HP
+
+    // Comportamiento si ya pasó las 14:00 UY:
+    // true => se queda en 0
+    // false => calcula hacia el próximo día (sube a 100% a las 00:00 siguiente y baja hasta 14:00)
+    const STICK_AT_ZERO_AFTER_END = true;
+
+    // Modo test: ?test=1 acelera el tiempo (14h se vuelven 60s)
+    const params = new URLSearchParams(location.search);
+    const TEST = params.get("test") === "1";
+    const TEST_TOTAL_SECONDS = 60;
+
+    const elFill = document.getElementById("fill");
+    const elHpText = document.getElementById("hpText");
+    const elClock = document.getElementById("clock");
+    const elBar = document.getElementById("bar");
+
+    function getNowPartsUY() {
+      const fmt = new Intl.DateTimeFormat("en-CA", {
+        timeZone: TZ,
+        year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", second: "2-digit",
+        hour12: false
+      });
+
+      const parts = fmt.formatToParts(new Date());
+      const get = (type) => parts.find(p => p.type === type)?.value;
+      return {
+        y: Number(get("year")),
+        m: Number(get("month")),
+        d: Number(get("day")),
+        hh: Number(get("hour")),
+        mm: Number(get("minute")),
+        ss: Number(get("second"))
+      };
+    }
+
+    // Construye una fecha "naive" (UTC) usando partes UY, solo para hacer diferencias en ms coherentes.
+    // (No dependemos del offset del navegador para las cuentas, solo usamos esta "línea de tiempo" consistente)
+    function msFromParts(p) {
+      // Interpretamos como si fuera UTC, porque lo importante es que start/end/now estén en la misma base.
+      return Date.UTC(p.y, p.m - 1, p.d, p.hh, p.mm, p.ss, 0);
+    }
+
+    function pad(n){ return String(n).padStart(2,"0"); }
+
+    function update() {
+      const now = getNowPartsUY();
+
+      // reloj UY
+      elClock.textContent = `${pad(now.hh)}:${pad(now.mm)}:${pad(now.ss)} UY`;
+
+      if (TEST) {
+        // En test, hacemos que el "ciclo" 00:00->14:00 dure TEST_TOTAL_SECONDS
+        const t = (Date.now() / 1000) % TEST_TOTAL_SECONDS;
+        const progress = t / TEST_TOTAL_SECONDS; // 0..1
+        const hp = Math.max(0, 1 - progress);
+        render(hp);
+        requestAnimationFrame(update);
+        return;
+      }
+
+      // Start: hoy a START_HOUR
+      const start = { ...now, hh: START_HOUR, mm: 0, ss: 0 };
+      const end   = { ...now, hh: END_HOUR,   mm: 0, ss: 0 };
+
+      let nowMs = msFromParts(now);
+      let startMs = msFromParts(start);
+      let endMs = msFromParts(end);
+
+      // Si todavía no llegamos al inicio del día (imposible con START=0) pero por si cambiás START_HOUR
+      if (nowMs < startMs) {
+        // antes del start => 100%
+        render(1);
+        requestAnimationFrame(update);
+        return;
+      }
+
+      // Si ya pasamos la hora end
+      if (nowMs >= endMs) {
+        if (STICK_AT_ZERO_AFTER_END) {
+          render(0);
+        } else {
+          // usar el próximo día: start/end del día siguiente
+          const tomorrow = new Date(Date.UTC(now.y, now.m - 1, now.d) + 24*60*60*1000);
+          const y = tomorrow.getUTCFullYear();
+          const m = tomorrow.getUTCMonth() + 1;
+          const d = tomorrow.getUTCDate();
+
+          startMs = Date.UTC(y, m - 1, d, START_HOUR, 0, 0);
+          endMs   = Date.UTC(y, m - 1, d, END_HOUR,   0, 0);
+          // hp desde "ahora" hacia el próximo end (si querés que hoy tarde cuente, dejalo así)
+          const total = endMs - startMs;
+          const elapsed = nowMs - startMs;
+          const hp = clamp01(1 - (elapsed / total));
+          render(hp);
+        }
+        requestAnimationFrame(update);
+        return;
+      }
+
+      // Normal: 00:00 -> 14:00
+      const total = endMs - startMs;
+      const elapsed = nowMs - startMs;
+      const hp = clamp01(1 - (elapsed / total));
+      render(hp);
+
+      requestAnimationFrame(update);
+    }
+
+    function clamp01(x){ return Math.max(0, Math.min(1, x)); }
+
+    function render(hp01) {
+      elFill.style.transform = `scaleX(${hp01})`;
+
+      const pct = Math.round(hp01 * 100);
+      elHpText.textContent = `${pct}%`;
+
+      // Clase dead si está muy bajo o en 0
+      if (hp01 <= 0.001) elBar.classList.add("dead");
+      else elBar.classList.remove("dead");
+    }
+
+    update();
+  </script>
+</body>
+</html>
