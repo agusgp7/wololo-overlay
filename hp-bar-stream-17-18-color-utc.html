@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>HP Bar Countdown (UTC safe)</title>
+  <style>
+    :root{
+      --w: 900px;
+      --h: 26px;
+      --border: 2px;
+      --radius: 999px;
+      --bg: rgba(0,0,0,0.35);
+      --frame: rgba(255,255,255,0.25);
+      --shadow: 0 10px 30px rgba(0,0,0,0.35);
+      --font: 14px;
+
+      --c1: rgba(80, 255, 140, 0.95);
+      --c2: rgba(255, 220, 90, 0.95);
+      --c3: rgba(255, 80, 80, 0.95);
+      --glow: 0 0 18px rgba(80, 255, 140, 0.35);
+    }
+
+    html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+
+    .wrap{
+      width: var(--w);
+      padding: 10px 12px;
+      background: transparent;
+      filter: drop-shadow(var(--shadow));
+    }
+
+    .row{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom: 8px;
+      color: rgba(255,255,255,0.9);
+      font-size: var(--font);
+      letter-spacing: 0.3px;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    }
+
+    .label{
+      display:flex;
+      gap:10px;
+      align-items:baseline;
+      white-space: nowrap;
+    }
+    .label b{ font-weight: 800; }
+
+    .bar{
+      width: var(--w);
+      height: var(--h);
+      background: var(--bg);
+      border: var(--border) solid var(--frame);
+      border-radius: var(--radius);
+      overflow: hidden;
+      position: relative;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.25);
+    }
+
+    .fill{
+      height: 100%;
+      width: 100%;
+      border-radius: var(--radius);
+      transform-origin: left center;
+      transform: scaleX(1);
+      transition: transform 250ms linear, filter 250ms linear;
+      box-shadow: var(--glow);
+      background: linear-gradient(90deg, var(--c1) 0%, var(--c2) 55%, var(--c3) 100%);
+    }
+
+    .shine{
+      position:absolute;
+      top:0; left:-30%;
+      height:100%;
+      width:30%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+      transform: skewX(-20deg);
+      animation: shine 2.6s linear infinite;
+      pointer-events:none;
+      opacity: 0.7;
+      mix-blend-mode: screen;
+    }
+    @keyframes shine{
+      0%{ left:-35%; }
+      100%{ left:105%; }
+    }
+
+    .dead .fill{
+      animation: lowhp 1.2s ease-in-out infinite;
+    }
+    @keyframes lowhp{
+      0%,100%{ opacity: 0.45; }
+      50%{ opacity: 0.95; }
+    }
+
+    .muted{ opacity: 0.8; }
+    .mono{ font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="row">
+      <div class="label">
+        <b>HP</b>
+        <span class="muted mono" id="hpText">100%</span>
+      </div>
+      <div class="muted mono" id="countdown">--:--:-- left</div>
+    </div>
+
+    <div class="bar" id="bar">
+      <div class="fill" id="fill"></div>
+      <div class="shine"></div>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * STREAM:
+     * 17/01/2026 14:00 (UY/AR) = 17/01/2026 17:00 UTC
+     * 18/01/2026 14:00 (UY/AR) = 18/01/2026 17:00 UTC
+     *
+     * Usamos UTC directo para que OBS no dependa de Intl/timeZone.
+     */
+    const STREAM_START_MS = Date.UTC(2026, 0, 17, 17, 0, 0); // 2026-01-17 17:00:00Z
+    const STREAM_END_MS   = Date.UTC(2026, 0, 18, 17, 0, 0); // 2026-01-18 17:00:00Z
+
+    // Test: ?test=1 => todo dura 60s
+    const params = new URLSearchParams(location.search);
+    const TEST = params.get("test") === "1";
+    const TEST_TOTAL_SECONDS = 60;
+
+    const elFill = document.getElementById("fill");
+    const elHpText = document.getElementById("hpText");
+    const elCountdown = document.getElementById("count
