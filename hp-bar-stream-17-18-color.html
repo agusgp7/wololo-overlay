@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>HP Bar Countdown</title>
+  <style>
+    :root{
+      --w: 900px;
+      --h: 26px;
+      --border: 2px;
+      --radius: 999px;
+      --bg: rgba(0,0,0,0.35);
+      --frame: rgba(255,255,255,0.25);
+      --shadow: 0 10px 30px rgba(0,0,0,0.35);
+      --font: 14px;
+
+      /* Colores base (se setean dinámicamente en JS) */
+      --c1: rgba(80, 255, 140, 0.95);
+      --c2: rgba(255, 220, 90, 0.95);
+      --c3: rgba(255, 80, 80, 0.95);
+      --glow: 0 0 18px rgba(80, 255, 140, 0.35);
+    }
+
+    html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+
+    .wrap{
+      width: var(--w);
+      padding: 10px 12px;
+      background: transparent;
+      filter: drop-shadow(var(--shadow));
+    }
+
+    .row{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom: 8px;
+      color: rgba(255,255,255,0.9);
+      font-size: var(--font);
+      letter-spacing: 0.3px;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    }
+
+    .label{
+      display:flex;
+      gap:10px;
+      align-items:baseline;
+      white-space: nowrap;
+    }
+    .label b{ font-weight: 800; }
+
+    .bar{
+      width: var(--w);
+      height: var(--h);
+      background: var(--bg);
+      border: var(--border) solid var(--frame);
+      border-radius: var(--radius);
+      overflow: hidden;
+      position: relative;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.25);
+    }
+
+    .fill{
+      height: 100%;
+      width: 100%;
+      border-radius: var(--radius);
+      transform-origin: left center;
+      transform: scaleX(1);
+      transition: transform 250ms linear, filter 250ms linear;
+      box-shadow: var(--glow);
+
+      /* Gradient dinámico: se alimenta de variables CSS */
+      background: linear-gradient(90deg, var(--c1) 0%, var(--c2) 55%, var(--c3) 100%);
+    }
+
+    .shine{
+      position:absolute;
+      top:0; left:-30%;
+      height:100%;
+      width:30%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+      transform: skewX(-20deg);
+      animation: shine 2.6s linear infinite;
+      pointer-events:none;
+      opacity: 0.7;
+      mix-blend-mode: screen;
+    }
+    @keyframes shine{
+      0%{ left:-35%; }
+      100%{ left:105%; }
+    }
+
+    .dead .fill{
+      animation: lowhp 1.2s ease-in-out infinite;
+    }
+    @keyframes lowhp{
+      0%,100%{ opacity: 0.45; }
+      50%{ opacity: 0.95; }
+    }
+
+    .muted{ opacity: 0.8; }
+    .mono{ font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="row">
+      <div class="label">
+        <b>HP</b>
+        <span class="muted mono" id="hpText">100%</span>
+      </div>
+      <div class="muted mono" id="countdown">--:--:-- left</div>
+    </div>
+
+    <div class="bar" id="bar">
+      <div class="fill" id="fill"></div>
+      <div class="shine"></div>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * CONFIG
+     * Usamos America/Montevideo para fijar el rango horario del stream.
+     * 100%: 17/01/2026 14:00
+     * 0%  : 18/01/2026 14:00
+     */
+    const TZ = "America/Montevideo";
+    const STREAM_START = { y: 2026, m: 1, d: 17, hh: 14, mm: 0, ss: 0 };
+    const STREAM_END   = { y: 2026, m: 1, d: 18, hh: 14, mm: 0, ss: 0 };
+
+    // Test: ?test=1 => el total dura 60s
+    const params = new URLSearchParams(location.search);
+    const TEST = params.get("test") === "1";
+    const TEST_TOTAL_SECONDS = 60;
+
+    const elFill = document.getElementById("fill");
+    const elHpText = document.getElementById("hpText");
+    const elCountdown = document.getElementById("countdown");
+    const elBar = document.getElementById("bar");
+
+    function pad(n){ return String(n).padStart(2,"0"); }
+    function clamp01(x){ return Math.max(0, Math.min(1, x)); }
+
+    // Partes "en Montevideo"
+    function getNowPartsInTZ() {
+      const fmt = new Intl.DateTimeFormat("en-CA", {
+        timeZone: TZ,
+        year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", second: "2-digit",
+        hour12: false
+      });
+      const parts = fmt.formatToParts(new Date());
+      const get = (type) => parts.find(p => p.type === type)?.value;
+      return {
+        y: Number(get("year")),
+        m: Number(get("month")),
+        d: Number(get("day")),
+        hh: Number(get("hour")),
+        mm: Number(get("minute")),
+        ss: Number(get("second"))
+      };
+    }
+
+    // ms en timeline consistente
+    function msFromParts(p) {
+      return Date.UTC(p.y, p.m - 1, p.d, p.hh, p.mm, p.ss, 0);
+    }
+
+    function formatLeft(msLeft) {
+      const totalSec = Math.max(0, Math.floor(msLeft / 1000));
+      const hh = Math.floor(totalSec / 3600);
+      const mm = Math.floor((totalSec % 3600) / 60);
+      const ss = totalSec % 60;
+      return `${pad(hh)}:${pad(mm)}:${pad(ss)} left`;
+    }
+
+    // Mezcla lineal de colores (0..1)
+    function lerp(a, b, t){ return a + (b - a) * t; }
+    function lerpRGB(c1, c2, t){
+      return {
+        r: Math.round(lerp(c1.r, c2.r, t)),
+        g: Math.round(lerp(c1.g, c2.g, t)),
+        b: Math.round(lerp(c1.b, c2.b, t)),
+        a: lerp(c1.a, c2.a, t)
+      };
+    }
+    function rgba({r,g,b,a}){ return `rgba(${r},${g},${b},${a})`; }
+
+    // Paleta: verde -> amarillo -> rojo
+    const GREEN  = { r: 80,  g: 255, b: 140, a: 0.95 };
+    const YELLOW = { r: 255, g: 220, b: 90,  a: 0.95 };
+    const RED    = { r: 255, g: 80,  b: 80,  a: 0.95 };
+
+    // hp01: 1..0
+    function applyHpColors(hp01){
+      // t = 0 (full) => verde, t = 1 (empty) => rojo
+      const t = 1 - hp01;
+
+      // Segmentos:
+      // 0..0.5 : verde->amarillo
+      // 0.5..1 : amarillo->rojo
+      let cMid;
+      if (t <= 0.5) {
+        cMid = lerpRGB(GREEN, YELLOW, t / 0.5);
+      } else {
+        cMid = lerpRGB(YELLOW, RED, (t - 0.5) / 0.5);
+      }
+
+      // Armamos un gradiente con 3 stops alrededor del color actual
+      // para que se vea "vivo" pero consistente con el estado.
+      const c1 = lerpRGB(cMid, GREEN, 0.35);   // tira un poco hacia verde
+      const c2 = cMid;                         // centro
+      const c3 = lerpRGB(cMid, RED, 0.35);     // tira un poco hacia rojo
+
+      // Glow acompaña el estado
+      const glowA = 0.22 + (1 - hp01) * 0.25;  // más intenso al bajar
+      const glow = `0 0 18px rgba(${cMid.r},${cMid.g},${cMid.b},${glowA})`;
+
+      // Seteamos variables CSS para que el fill cambie solo
+      document.documentElement.style.setProperty("--c1", rgba(c1));
+      document.documentElement.style.setProperty("--c2", rgba(c2));
+      document.documentElement.style.setProperty("--c3", rgba(c3));
+      document.documentElement.style.setProperty("--glow", glow);
+    }
+
+    function render(hp01, msLeft) {
+      elFill.style.transform = `scaleX(${hp01})`;
+      elHpText.textContent = `${Math.round(hp01 * 100)}%`;
+      elCountdown.textContent = formatLeft(msLeft);
+
+      applyHpColors(hp01);
+
+      if (hp01 <= 0.001) elBar.classList.add("dead");
+      else elBar.classList.remove("dead");
+    }
+
+    function update() {
+      if (TEST) {
+        const t = (Date.now() / 1000) % TEST_TOTAL_SECONDS;
+        const progress = t / TEST_TOTAL_SECONDS;
+        const hp = clamp01(1 - progress);
+        const msLeft = Math.max(0, (1 - progress) * TEST_TOTAL_SECONDS * 1000);
+        render(hp, msLeft);
+        requestAnimationFrame(update);
+        return;
+      }
+
+      const now = getNowPartsInTZ();
+      const nowMs = msFromParts(now);
+
+      const startMs = msFromParts(STREAM_START);
+      const endMs   = msFromParts(STREAM_END);
+
+      // Antes del inicio: 100% y cuenta hasta el final
+      if (nowMs <= startMs) {
+        render(1, endMs - nowMs);
+        requestAnimationFrame(update);
+        return;
+      }
+
+      // Después del final: 0% y 00:00:00 left
+      if (nowMs >= endMs) {
+        render(0, 0);
+        requestAnimationFrame(update);
+        return;
+      }
+
+      const total = endMs - startMs;
+      const elapsed = nowMs - startMs;
+      const hp = clamp01(1 - (elapsed / total));
+      const msLeft = endMs - nowMs;
+
+      render(hp, msLeft);
+      requestAnimationFrame(update);
+    }
+
+    update();
+  </script>
+</body>
+</html>
